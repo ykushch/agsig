@@ -1,0 +1,13 @@
+  Would you like to run the following command?
+
+  Environment: local
+
+  Reason: Allow creating the requested empty fixture file on your Desktop?
+
+  $ touch /Users/example/Desktop/notchagent-approval-demo
+
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with `touch /Users/example/Desktop/notchagent-approval-demo` (p)
+  3. No, and tell Codex what to do differently (esc)
+
+  Press enter to confirm or esc to cancel

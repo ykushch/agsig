@@ -1,0 +1,71 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "add_notes" : [
+        "tab"
+      ],
+      "option_1" : [
+        "enter"
+      ],
+      "option_4" : [
+        "down",
+        "down",
+        "down",
+        "enter"
+      ],
+      "previous_question" : [
+        "left"
+      ]
+    },
+    "interaction_kind" : "question",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-single-select-q3",
+    "notes" : [
+      "Final question uses enter to submit all."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Turn your goal into concrete, ordered next steps.",
+      "Compare options and confidently choose a direction.",
+      "Create milestones and a way to track progress.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Action plan (Recommended)",
+      "Decision clarity",
+      "Accountability",
+      "None of the above"
+    ],
+    "progress" : "Question 3/3 (3 unanswered)",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "What kind of result would be most valuable?"
+  },
+  "artifact_sha256" : "f916dd993b674df071b43bd300a05c804d38f3a397beaf31d8583ac9c4b439dd",
+  "fixture_detection_sha256" : "ddb9f227ae6cf374bcf321ef956fd92be7718ee1d0a06c98047dd02b0fdade4e",
+  "fixture_visible_ansi_sha256" : "f1d5d1d458500354fb38a8635bd6a2e3fe54017e2e662f0e04fdaa8526fa7984",
+  "region" : {
+    "end_marker" : "esc to interrupt",
+    "start_marker" : "Question 3/3"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:04:42Z",
+    "detection_byte_count" : 1511,
+    "detection_sha256" : "8459400c55a4a6df946670dbf91b504f5f009534dab32523663fd0c9790b0693",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11054,
+    "pane_revision_before" : 11054,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4389,
+    "visible_ansi_sha256" : "8dc8e5251a1f28b1ca96925756aafef1ea4ce8fceceb9af79db5c73fa16c11b8"
+  }
+}

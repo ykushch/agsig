@@ -1,0 +1,65 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "approve_once" : [
+        "y"
+      ],
+      "approve_persist" : [
+        "p"
+      ],
+      "confirm_selected" : [
+        "enter"
+      ],
+      "deny" : [
+        "esc"
+      ]
+    },
+    "interaction_kind" : "security_approval",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-command-approval",
+    "notes" : [
+      "Captured before execution. The local user path was explicitly sanitized to /Users/example."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Run once.",
+      "Persist approval for the exact command prefix.",
+      "Deny and return feedback to Codex."
+    ],
+    "option_labels" : [
+      "Yes, proceed",
+      "Yes, and don't ask again",
+      "No, and tell Codex what to do differently"
+    ],
+    "response_mechanism" : "numbered_shortcut_or_arrow",
+    "title" : "Would you like to run the following command?"
+  },
+  "artifact_sha256" : "3dd8a319ff1776f1c21fefbc9faaa12582baca3c19c3b2f1cf4653d0493806ad",
+  "fixture_detection_sha256" : "44e586c8298a890d9ff122e10043940571420f2e2b2b5188456b3bf020a820c8",
+  "fixture_visible_ansi_sha256" : "71c0eb3d8f12f3b31bdbd42964ea59b43fcc24caf76e023df660225baea8bc16",
+  "region" : {
+    "end_marker" : "Press enter to confirm or esc to cancel",
+    "start_marker" : "Would you like to run the following command?"
+  },
+  "sanitization" : "explicit_replacement",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:08:49Z",
+    "detection_byte_count" : 1445,
+    "detection_sha256" : "975a81377f69a281d291948220558dcf2eba615208444ed74bcf733775824d37",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11164,
+    "pane_revision_before" : 11164,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 5014,
+    "visible_ansi_sha256" : "4175b641e6838629d55b86012a53998a9babae87a8d862ff230d6558db27eb44"
+  }
+}

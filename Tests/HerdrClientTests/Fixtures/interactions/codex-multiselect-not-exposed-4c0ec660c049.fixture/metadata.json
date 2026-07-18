@@ -1,0 +1,62 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "cancel" : [
+        "esc"
+      ],
+      "option_1" : [
+        "enter"
+      ]
+    },
+    "interaction_kind" : "question",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-multiselect-not-exposed",
+    "notes" : [
+      "Codex was explicitly asked for multi-select checkboxes but exposed a single-select cursor UI with no checkbox/toggle mechanism; multi-select is not supported by this observed build."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Software, AI, gadgets, and digital tools.",
+      "Writing, design, music, and visual arts.",
+      "Fitness, nutrition, sleep, and wellbeing.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Technology (Recommended)",
+      "Creative work",
+      "Health",
+      "None of the above"
+    ],
+    "progress" : "Question 1/1 (1 unanswered)",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "Select all areas you’d like to explore (you may choose multiple)."
+  },
+  "artifact_sha256" : "4c0ec660c0497db6ca4fe1d57814a44f9f509ecf108724ff98b0e448c728f5fc",
+  "fixture_detection_sha256" : "42605127905fbcfab0e8a41b0418e92b21719f3ed9f3dff508c4839c2686645c",
+  "fixture_visible_ansi_sha256" : "d465cd6898e5be89d4c930f1de23f3c925d97cc2038aa03307cf738148f6f1bf",
+  "region" : {
+    "end_marker" : "esc to interrupt",
+    "start_marker" : "Question 1/1"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:10:43Z",
+    "detection_byte_count" : 1656,
+    "detection_sha256" : "2dff1565f686dcc19b7f12c9eeda6eb650189faa81dc5f682c4c758eda9bbf5e",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11192,
+    "pane_revision_before" : 11192,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4803,
+    "visible_ansi_sha256" : "4ea1e53a0e85194bde89b7ed41c05769d38988947413c5773332da868e51327f"
+  }
+}

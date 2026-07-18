@@ -1,0 +1,74 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "option_1" : [
+        "up",
+        "up",
+        "up",
+        "enter"
+      ],
+      "option_2" : [
+        "up",
+        "up",
+        "enter"
+      ],
+      "option_3" : [
+        "up",
+        "enter"
+      ],
+      "option_4" : [
+        "enter"
+      ]
+    },
+    "interaction_kind" : "question",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-single-select-q1-cursor4",
+    "notes" : [
+      "Live last-option cursor state; status remained blocked."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 3,
+    "option_descriptions" : [
+      "Focus on work, skills, projects, or business growth.",
+      "Focus on habits, confidence, learning, or direction.",
+      "Focus on physical fitness, energy, sleep, or wellbeing.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Career (Recommended)",
+      "Personal growth",
+      "Health",
+      "None of the above"
+    ],
+    "progress" : "Question 1/3 (3 unanswered)",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "Which area would you most like to improve right now?"
+  },
+  "artifact_sha256" : "a48b08d11fd1548b311d12b0ae5d3cc4eff767314790b2d734ad75f559db50e6",
+  "fixture_detection_sha256" : "2675cb8d61320a036781a44a88e0c60a712de7246b733ee9f733fdaeed3c5a6c",
+  "fixture_visible_ansi_sha256" : "2aabf4dfcefdc1982dea4b4b37262c0baf93a5b920c349ed135ea97b1d9947d8",
+  "region" : {
+    "end_marker" : "esc to interrupt",
+    "start_marker" : "Question 1/3"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:04:21Z",
+    "detection_byte_count" : 1516,
+    "detection_sha256" : "7340755831d4ff068c2dfe3d3eb8e1e50055c09d75cd02551054bd73fa8818a1",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11033,
+    "pane_revision_before" : 11033,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4332,
+    "visible_ansi_sha256" : "bf07cd77b0c25556dcec127f4d47bc837dca3138acda66b455ea50b65e70f5b9"
+  }
+}

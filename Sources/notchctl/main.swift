@@ -20,6 +20,8 @@ enum CLI {
             case "resolve": guard args.count > 2 else { throw CLIError.usage("resolve requires a pane id and approve|deny|option number") }; try await resolve(client, pane: args[1], choice: args[2])
             case "list": try await list(client)
             case "read": guard args.count > 1 else { throw CLIError.usage("read requires a pane id") }; try await read(client, pane: args[1])
+            case "capture": guard args.count > 1 else { throw CLIError.usage("capture requires a pane id and --output DIR") }; try await capture(client, pane: args[1], args: args)
+            case "extract": guard args.count > 1 else { throw CLIError.usage("extract requires a capture directory, --annotations FILE, and --output DIR") }; try extract(capturePath: args[1], args: args)
             case "reply": guard args.count > 2 else { throw CLIError.usage("reply requires a pane id and text") }; report(try await Actions(client: client).reply(pane: args[1], text: args.dropFirst(2).joined(separator: " ")))
             case "jump": guard args.count > 1 else { throw CLIError.usage("jump requires a pane id") }; report(try await Actions(client: client).jump(pane: args[1]))
             case "watch": try await watch(client)
@@ -40,6 +42,72 @@ enum CLI {
     static func read(_ client: HerdrClient, pane: String) async throws {
         let prompt = try await classify(client, pane: pane)
         if jsonOutput { printPromptJSON(prompt, pane: pane) } else { printPrompt(prompt) }
+    }
+
+    static func capture(_ client: HerdrClient, pane paneID: String,
+                        args: [String]) async throws {
+        guard let outputIndex = args.firstIndex(of: "--output"),
+              args.indices.contains(outputIndex + 1) else {
+            throw CLIError.usage("capture requires --output DIR")
+        }
+        let outputURL = URL(fileURLWithPath: NSString(
+            string: args[outputIndex + 1]).expandingTildeInPath, isDirectory: true)
+        let overwrite = args.contains("--force")
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let bundle = try await PaneCapturer(client: client).capture(
+            paneID: paneID, capturedAt: timestamp)
+        let destination = try PaneCaptureWriter().write(bundle, to: outputURL,
+                                                        overwrite: overwrite)
+        print(destination.path)
+        if !bundle.metadata.hasConsistentRevision {
+            fputs("notchctl: warning: pane revision changed during capture\n", stderr)
+        }
+    }
+
+    static func extract(capturePath: String, args: [String]) throws {
+        let outputPath = try option("--output", in: args)
+        let annotationsPath = try option("--annotations", in: args)
+        let captureURL = fileURL(capturePath, isDirectory: true)
+        let outputURL = fileURL(outputPath, isDirectory: true)
+        let annotationsURL = fileURL(annotationsPath)
+        let annotations = try JSONDecoder().decode(
+            PaneFixtureAnnotations.self, from: Data(contentsOf: annotationsURL))
+        let replacementDetection = try optionalFileData("--detection-file", in: args)
+        let replacementVisible = try optionalFileData("--visible-file", in: args)
+        let region = optionalOption("--from-marker", in: args).map {
+            PaneFixtureRegion(startMarker: $0,
+                              endMarker: optionalOption("--through-marker", in: args))
+        }
+        let destination = try PaneFixtureExtractor().extract(
+            captureDirectory: captureURL, annotations: annotations,
+            outputDirectory: outputURL, replacementDetection: replacementDetection,
+            replacementVisibleANSI: replacementVisible, region: region)
+        print(destination.path)
+    }
+
+    static func option(_ name: String, in args: [String]) throws -> String {
+        guard let index = args.firstIndex(of: name), args.indices.contains(index + 1) else {
+            throw CLIError.usage("missing required option \(name)")
+        }
+        return args[index + 1]
+    }
+
+    static func optionalFileData(_ name: String, in args: [String]) throws -> Data? {
+        guard args.contains(name) else { return nil }
+        return try Data(contentsOf: fileURL(try option(name, in: args)))
+    }
+
+    static func optionalOption(_ name: String, in args: [String]) -> String? {
+        guard let index = args.firstIndex(of: name), args.indices.contains(index + 1) else {
+            return nil
+        }
+        return args[index + 1]
+    }
+
+    static func fileURL(_ path: String, isDirectory: Bool = false) -> URL {
+        URL(fileURLWithPath: NSString(string: path).expandingTildeInPath,
+            isDirectory: isDirectory)
     }
 
     static func classify(_ client: HerdrClient, pane: String) async throws -> ClassifiedPrompt {
@@ -104,7 +172,7 @@ enum CLI {
     }
     static func pad(_ text: String, _ width: Int) -> String { text.padding(toLength: width, withPad: " ", startingAt: 0) }
     static func timestamp() -> String { ISO8601DateFormatter().string(from: Date()) }
-    static func usage() { print("usage: notchctl [--sock PATH] [--json] <list|watch|read|resolve|reply|jump> …") }
+    static func usage() { print("usage: notchctl [--sock PATH] [--json] <list|watch|read|capture|extract|resolve|reply|jump> …") }
 }
 
 enum CLIError: Error, CustomStringConvertible {

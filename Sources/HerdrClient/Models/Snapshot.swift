@@ -169,6 +169,22 @@ public struct Snapshot: Codable, Sendable {
     public let panes: [PaneInfo]
     public let agents: [AgentInfo]
 
+    public init(version: String? = nil, protocol: Int? = nil,
+                focusedWorkspaceID: String? = nil, focusedTabID: String? = nil,
+                focusedPaneID: String? = nil, workspaces: [WorkspaceInfo] = [],
+                tabs: [TabInfo] = [], panes: [PaneInfo] = [],
+                agents: [AgentInfo] = []) {
+        self.version = version
+        self.protocol = `protocol`
+        self.focusedWorkspaceID = focusedWorkspaceID
+        self.focusedTabID = focusedTabID
+        self.focusedPaneID = focusedPaneID
+        self.workspaces = workspaces
+        self.tabs = tabs
+        self.panes = panes
+        self.agents = agents
+    }
+
     enum CodingKeys: String, CodingKey {
         case version
         case `protocol`

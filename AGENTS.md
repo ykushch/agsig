@@ -81,10 +81,11 @@ NotchApp UI (NSPanel + SwiftUI)  /  notchctl CLI
 
 ## Conventions
 
-- **Fixtures are the test corpus.** Real captures live in `../specs/fixtures/`
-  and are copied into `Tests/HerdrClientTests/Fixtures/` (via `.copy` — preserves
+- **Fixtures are the test corpus.** Real captures live canonically in
+  `Tests/HerdrClientTests/Fixtures/` and are bundled via `.copy` (which preserves
   the directory, so resolve with `Bundle.module.resourceURL`, not `forResource:`).
-  Never hand-write a "live" prompt fixture; capture from a real agent.
+  Never hand-write a "live" prompt fixture; capture from a real agent with
+  `notchctl capture` and keep its provenance metadata beside the fixture.
 - **Decode-tolerant models.** Unknown JSON fields are ignored; unknown enum values
   map to `.unknown` rather than throwing. A decode failure on unknown input is a bug.
 - Swift 6 strict concurrency: UI + `StateStore` are `@MainActor`. A CLI/loop that
