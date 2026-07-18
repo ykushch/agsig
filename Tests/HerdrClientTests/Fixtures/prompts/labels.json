@@ -1,0 +1,21 @@
+{
+  "_note": "Ground-truth labels for the prompt fixtures.",
+  "agent": "claude",
+  "fixtures": [
+    {"file":"bash-permission-detection.txt","kind":"approval","options":[
+      {"label":"Yes","keysToSend":["1","enter"]},
+      {"label":"No, and tell Claude what to do differently","keysToSend":["2","enter"]}
+    ]},
+    {"file":"generic-permission-detection.txt","kind":"approval","options":[
+      {"label":"Yes","keysToSend":["1","enter"]},
+      {"label":"Yes, and don't ask again this session","keysToSend":["2","enter"]},
+      {"label":"No, and tell Claude what to do differently","keysToSend":["3","enter"]}
+    ]},
+    {"file":"ask-question-detection.txt","kind":"question","options":[
+      {"label":"Production","keysToSend":["1","enter"]},
+      {"label":"Staging","keysToSend":["2","enter"]},
+      {"label":"Local only","keysToSend":["3","enter"]}
+    ]},
+    {"file":"idle-prompt-box-detection.txt","kind":"none","options":[]}
+  ]
+}

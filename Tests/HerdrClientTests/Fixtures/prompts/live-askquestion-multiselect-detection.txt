@@ -1,0 +1,20 @@
+The folder is empty, so we're starting completely fresh. Let me ask you a few questions:
+
+← ☒ Purpose  □ Topics  □ My role  ✓ Submit →
+
+How would you like me to help you in this folder?
+
+› 1. [✓] Organize & take notes
+  Help structure the knowledge base, summarize and organize material
+  2. [ ] Tutor or explain
+  Explain concepts, quiz you, help you understand the material deeply
+  3. [ ] Code alongside courses
+  Help with exercises, labs, and practice projects
+  4. [ ] Build a study plan
+  Track progress, plan schedules, keep you accountable
+  5. [ ] Type something
+     › Submit
+
+  6. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel

@@ -1,0 +1,19 @@
+The folder is empty, so we're starting completely fresh. Let me ask you a few questions:
+
+← ☒ Purpose  □ Topics  □ My role  ✓ Submit →
+
+What is this study-coursera folder for?
+
+› 1. Course notes & summaries
+  A comprehensive collection of notes and summaries from Coursera courses you're taking
+  2. Exercises & assignments
+  Code exercises, labs, and assignments from courses
+  3. Both notes and code
+  A mix of notes, summaries, and hands-on exercise code
+  4. Planning what to study
+  You haven't started yet — want help picking courses or building a study plan
+  5. Type something.
+
+  6. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel
