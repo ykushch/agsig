@@ -267,8 +267,8 @@ final class NotchViewModel {
             let result = try await client.request("session.snapshot")
             let snapValue = result["snapshot"] ?? result
             let snapshot = try snapValue.decode(Snapshot.self)
-            connection = .connected
-            globalError = nil
+            if connection != .connected { connection = .connected }
+            if globalError != nil { globalError = nil }
             let selectedBefore = selectedPaneID
             let transitions = store.reconcileTransitions(snapshot)
             _ = await reconcileInteractions(
@@ -301,8 +301,9 @@ final class NotchViewModel {
                 clearSelection()
             }
         } catch {
-            connection = .unavailable
-            lastError = "Couldn't reach herdr — is it running?"
+            if connection != .unavailable { connection = .unavailable }
+            let message = "Couldn't reach herdr — is it running?"
+            if lastError != message { lastError = message }
         }
     }
 

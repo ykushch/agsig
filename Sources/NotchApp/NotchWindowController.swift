@@ -10,6 +10,7 @@ final class NotchWindowController {
 
     private let fallbackNotchWidth: CGFloat = 190
     private let collapsedHeight: CGFloat = 30
+    private var renderedNotchWidth: CGFloat
 
     init(viewModel: NotchViewModel) {
         self.viewModel = viewModel
@@ -18,6 +19,7 @@ final class NotchWindowController {
         let frame = Self.frame(on: screen, width: width, height: collapsedHeight)
         panel = NotchPanel(contentRect: frame)
         hostingView = NSHostingView(rootView: PlaceholderNotchView(model: viewModel, notchWidth: width))
+        renderedNotchWidth = width
         hostingView.frame = NSRect(origin: .zero, size: frame.size)
         hostingView.autoresizingMask = [.width, .height]
         panel.contentView = hostingView
@@ -48,13 +50,25 @@ final class NotchWindowController {
         let height = viewModel.isExpanded ? Self.expandedHeight(
             on: screen, agentCount: viewModel.agentCount,
             hasSelectedDetail: viewModel.selectedPaneID != nil) : collapsedHeight
-        hostingView.rootView = PlaceholderNotchView(model: viewModel, notchWidth: notchWidth)
-        panel.isInteractive = viewModel.isExpanded
+        let targetFrame = Self.frame(on: screen, width: width, height: height)
+
+        // The SwiftUI tree owns live content updates. Replacing its root view on
+        // every observation callback tears down material/rendering state and can
+        // produce a visible flash. Only rebuild if the physical notch width
+        // changed (for example, after moving to a different display).
+        if abs(renderedNotchWidth - notchWidth) > 0.5 {
+            renderedNotchWidth = notchWidth
+            hostingView.rootView = PlaceholderNotchView(
+                model: viewModel, notchWidth: notchWidth)
+        }
+
+        if panel.isInteractive != viewModel.isExpanded {
+            panel.isInteractive = viewModel.isExpanded
+        }
+        guard !NSEqualRects(panel.frame, targetFrame) else { return }
         panel.setFrame(
-            Self.frame(on: screen, width: width, height: height),
-            display: true,
+            targetFrame, display: true,
             animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        panel.orderFrontRegardless()
     }
 
     private static func notchScreen() -> NSScreen {

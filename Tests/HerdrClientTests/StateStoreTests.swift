@@ -256,6 +256,51 @@ struct StateStoreTests {
         #expect(!again.contains("w1:p1"))
     }
 
+    @Test("reconciling an identical snapshot does not publish a store change")
+    func identicalReconcileIsSilent() throws {
+        let store = StateStore()
+        let snapshot = try loadSnapshot()
+        store.hydrate(snapshot)
+        let revisionBefore = store.revision
+
+        let transitions = store.reconcileTransitions(snapshot)
+
+        #expect(transitions == StateTransitionResult())
+        #expect(store.revision == revisionBefore)
+    }
+
+    @Test("reconcile still publishes non-status pane metadata changes")
+    func reconcilePublishesMetadataChanges() throws {
+        let store = StateStore()
+        let snapshot = try loadSnapshot()
+        store.hydrate(snapshot)
+        let revisionBefore = store.revision
+        let panes = snapshot.panes.map { pane in
+            guard pane.paneID == "w1:p1" else { return pane }
+            return PaneInfo(
+                paneID: pane.paneID, terminalID: pane.terminalID,
+                workspaceID: pane.workspaceID, tabID: pane.tabID,
+                focused: pane.focused, agentStatus: pane.agentStatus,
+                revision: pane.revision, agent: pane.agent,
+                displayAgent: pane.displayAgent, customStatus: pane.customStatus,
+                label: "renamed task", title: pane.title, cwd: pane.cwd,
+                foregroundCwd: pane.foregroundCwd, scroll: pane.scroll,
+                tokens: pane.tokens)
+        }
+        let changed = Snapshot(
+            version: snapshot.version, protocol: snapshot.protocol,
+            focusedWorkspaceID: snapshot.focusedWorkspaceID,
+            focusedTabID: snapshot.focusedTabID,
+            focusedPaneID: snapshot.focusedPaneID,
+            workspaces: snapshot.workspaces, tabs: snapshot.tabs,
+            panes: panes, agents: snapshot.agents)
+
+        _ = store.reconcileTransitions(changed)
+
+        #expect(store.panes["w1:p1"]?.label == "renamed task")
+        #expect(store.revision == revisionBefore + 1)
+    }
+
     @Test("reconcile derives done on working→idle and drops vanished panes")
     func reconcileDoneAndVanish() throws {
         let store = StateStore()

@@ -61,6 +61,37 @@ private actor AsyncGate {
     }
 }
 
+private actor DelayedCallInteractionReader: InteractionProviding {
+    private var values: [PendingInteraction]
+    private let delayedCall: Int
+    private let started: AsyncGate
+    private let release: AsyncGate
+    private var callCount = 0
+
+    init(values: [PendingInteraction], delayedCall: Int,
+         started: AsyncGate, release: AsyncGate) {
+        self.values = values
+        self.delayedCall = delayedCall
+        self.started = started
+        self.release = release
+    }
+
+    func interaction(paneID: String, agentID: String?,
+                     paneRevision: UInt64?) async throws -> PendingInteraction {
+        callCount += 1
+        let currentCall = callCount
+        guard !values.isEmpty else {
+            throw InteractionProviderError.unreadablePane(paneID: paneID)
+        }
+        let value = values.count == 1 ? values[0] : values.removeFirst()
+        if currentCall == delayedCall {
+            await started.open()
+            await release.wait()
+        }
+        return value
+    }
+}
+
 private actor GatedInteractionReader: InteractionProviding {
     let first: PendingInteraction
     let next: PendingInteraction
@@ -157,7 +188,7 @@ struct InteractionCoordinatorTests {
         #expect(coordinator.state(for: "w1:p1")?.lastRefreshReason == .explicitSelection)
     }
 
-    @Test("revision changes refresh non-selected panes while selected pane stays current")
+    @Test("stable selected panes stay cached while revision changes refresh other panes")
     func revisionRefreshesNonSelectedPane() async {
         let p1 = read(paneID: "w1:p1", title: "Selected")
         let p2a = read(paneID: "w1:p2", title: "Question one")
@@ -176,9 +207,46 @@ struct InteractionCoordinatorTests {
             panes: [pane("w1:p1", revision: 1), pane("w1:p2", revision: 2)],
             newlyBlockedPaneIDs: [])
 
-        #expect(result.refreshedPaneIDs == ["w1:p1", "w1:p2"])
+        #expect(result.refreshedPaneIDs == ["w1:p2"])
+        #expect(await reader.count(for: "w1:p1") == 2)
         #expect(coordinator.state(for: "w1:p2")?.interaction?.title == "Question two")
         #expect(coordinator.state(for: "w1:p2")?.lastRefreshReason == .revisionChanged)
+    }
+
+    @Test("background revision refresh keeps loaded interaction visibly idle")
+    func backgroundRefreshIsSilent() async {
+        let original = read(paneID: "w1:p1", title: "Original question")
+        let updated = read(paneID: "w1:p1", title: "Updated question")
+        let started = AsyncGate()
+        let release = AsyncGate()
+        let reader = DelayedCallInteractionReader(
+            values: [original, original, updated], delayedCall: 3,
+            started: started, release: release)
+        let coordinator = InteractionCoordinator(
+            reader: reader,
+            responder: ImmediateInteractionResponder(
+                interactions: ["w1:p1": original]))
+        _ = await coordinator.reconcile(
+            panes: [pane("w1:p1", revision: 1)], newlyBlockedPaneIDs: [])
+        await coordinator.select(paneID: "w1:p1")
+
+        let refresh = Task { @MainActor in
+            await coordinator.reconcile(
+                panes: [pane("w1:p1", revision: 2)],
+                newlyBlockedPaneIDs: [])
+        }
+        await started.wait()
+
+        #expect(coordinator.state(for: "w1:p1")?.phase == .idle)
+        #expect(coordinator.state(for: "w1:p1")?.interaction?.title
+            == "Original question")
+
+        await release.open()
+        let result = await refresh.value
+        #expect(result.refreshedPaneIDs == ["w1:p1"])
+        #expect(coordinator.state(for: "w1:p1")?.phase == .idle)
+        #expect(coordinator.state(for: "w1:p1")?.interaction?.title
+            == "Updated question")
     }
 
     @Test("untrusted revisions use the fourth-poll fallback cadence")
@@ -207,6 +275,15 @@ struct InteractionCoordinatorTests {
         #expect(fourth.refreshedPaneIDs == ["w1:p1"])
         #expect(await reader.count(for: "w1:p1") == 2)
         #expect(coordinator.state(for: "w1:p1")?.lastRefreshReason == .fallbackCadence)
+
+        let firstFallbackReadAt = coordinator.state(for: "w1:p1")?.lastReadAt
+        for _ in 0..<4 {
+            _ = await coordinator.reconcile(
+                panes: panes, newlyBlockedPaneIDs: [])
+        }
+        #expect(await reader.count(for: "w1:p1") == 3)
+        #expect(coordinator.state(for: "w1:p1")?.lastReadAt
+            == firstFallbackReadAt)
     }
 
     @Test("resolved and exited panes clean up state without discarding recoverable drafts")

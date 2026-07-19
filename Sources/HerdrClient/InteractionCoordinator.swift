@@ -120,6 +120,7 @@ public final class InteractionCoordinator {
     @ObservationIgnored private let settleAttempts: Int
     @ObservationIgnored private let settleDelayNanoseconds: UInt64
     @ObservationIgnored private var knownPanes: [String: InteractionPaneSnapshot] = [:]
+    @ObservationIgnored private var refreshingGenerations: [String: UInt64] = [:]
     @ObservationIgnored private var pollIndex = 0
     @ObservationIgnored private var nextBlockedSequence: UInt64 = 0
 
@@ -177,9 +178,14 @@ public final class InteractionCoordinator {
         knownPanes = Dictionary(uniqueKeysWithValues: panes.map { ($0.paneID, $0) })
         let liveIDs = Set(panes.map(\.paneID))
         let blockedIDs = Set(panes.filter(\.isBlocked).map(\.paneID))
-        completionSummaries = completionSummaries.filter { liveIDs.contains($0.key) }
+        let liveSummaries = completionSummaries.filter { liveIDs.contains($0.key) }
+        if liveSummaries != completionSummaries {
+            completionSummaries = liveSummaries
+        }
         for pane in panes where pane.isBlocked || pane.isWorking {
-            completionSummaries[pane.paneID] = nil
+            if completionSummaries[pane.paneID] != nil {
+                completionSummaries[pane.paneID] = nil
+            }
         }
         var removed: [String] = []
 
@@ -211,12 +217,10 @@ public final class InteractionCoordinator {
         for paneID in orderedNew {
             appendRefresh(paneID, reason: .newlyBlocked, to: &refreshes)
         }
-        if let selectedPaneID, blockedIDs.contains(selectedPaneID) {
-            appendRefresh(selectedPaneID, reason: .selected, to: &refreshes)
-        }
-        for paneID in blockedIDs.sorted() where paneID != selectedPaneID {
+        for paneID in blockedIDs.sorted() {
             guard !orderedNew.contains(paneID), let pane = knownPanes[paneID],
-                  let state = states[paneID], !state.phase.isBusy else { continue }
+                  let state = states[paneID], !state.phase.isBusy,
+                  refreshingGenerations[paneID] != state.blockedSequence else { continue }
             if let revision = pane.revision, state.lastRevision != nil,
                revision != state.lastRevision {
                 appendRefresh(paneID, reason: .revisionChanged, to: &refreshes)
@@ -254,7 +258,9 @@ public final class InteractionCoordinator {
         let value = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty, let pane = knownPanes[paneID],
               !pane.isBlocked, !pane.isWorking else { return }
-        completionSummaries[paneID] = value
+        if completionSummaries[paneID] != value {
+            completionSummaries[paneID] = value
+        }
     }
 
     public func draftText(for paneID: String) -> String {
@@ -382,7 +388,7 @@ public final class InteractionCoordinator {
 
     public func setError(_ message: String?, paneID: String) {
         ensureStateForKnownPane(paneID)
-        guard var state = states[paneID] else { return }
+        guard var state = states[paneID], state.error != message else { return }
         state.error = message
         states[paneID] = state
     }
@@ -392,22 +398,40 @@ public final class InteractionCoordinator {
         guard let pane = knownPanes[paneID], pane.isBlocked else { return false }
         _ = ensureBlockedState(paneID)
         guard var state = states[paneID], !state.phase.isBusy else { return false }
-        state.phase = .reading
-        states[paneID] = state
         let generation = state.blockedSequence
+        guard refreshingGenerations[paneID] != generation else { return false }
+        refreshingGenerations[paneID] = generation
+        defer {
+            if refreshingGenerations[paneID] == generation {
+                refreshingGenerations[paneID] = nil
+            }
+        }
+        let showsActivity = state.interaction == nil
+        if showsActivity {
+            state.phase = .reading
+            states[paneID] = state
+        }
         do {
             let interaction = try await reader.interaction(
                 paneID: paneID, agentID: pane.agentID,
                 paneRevision: pane.revision)
-            guard states[paneID]?.blockedSequence == generation,
-                  states[paneID]?.phase == .reading else { return false }
+            guard states[paneID]?.blockedSequence == generation else { return false }
+            if showsActivity {
+                guard states[paneID]?.phase == .reading else { return false }
+            } else {
+                guard states[paneID]?.phase == .idle else { return false }
+            }
             install(interaction: interaction, paneID: paneID, reason: reason,
                     observedRevision: pane.revision)
-            setPhase(.idle, paneID: paneID)
             return true
         } catch {
             guard states[paneID]?.blockedSequence == generation else { return false }
-            setPhase(.idle, paneID: paneID)
+            if showsActivity {
+                guard states[paneID]?.phase == .reading else { return false }
+            } else {
+                guard states[paneID]?.phase == .idle else { return false }
+            }
+            if showsActivity { setPhase(.idle, paneID: paneID) }
             setError(Self.message(for: error), paneID: paneID)
             return false
         }
@@ -451,10 +475,11 @@ public final class InteractionCoordinator {
         state.agentID = knownPanes[paneID]?.agentID ?? interaction.evidence.agentID
         state.interaction = interaction
         state.lastRevision = observedRevision
-        state.lastReadAt = now()
         state.lastRefreshReason = reason
         state.error = nil
         if !preservingPhase { state.phase = .idle }
+        guard state != states[paneID] else { return }
+        state.lastReadAt = now()
         states[paneID] = state
     }
 
@@ -510,7 +535,7 @@ public final class InteractionCoordinator {
     }
 
     private func setPhase(_ phase: PaneInteractionPhase, paneID: String) {
-        guard var state = states[paneID] else { return }
+        guard var state = states[paneID], state.phase != phase else { return }
         state.phase = phase
         states[paneID] = state
     }

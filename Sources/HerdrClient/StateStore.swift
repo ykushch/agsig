@@ -118,23 +118,40 @@ public final class StateStore {
     @discardableResult
     public func reconcileTransitions(_ snapshot: Snapshot) -> StateTransitionResult {
         let finishedBefore = finishedUnseen
+        var didChange = false
         // Topology first: add new panes, drop vanished ones, refresh tab/workspace.
         let fresh = snapshot.uniquePanes
         let freshIDs = Set(fresh.map(\.paneID))
-        for gone in Set(panes.keys).subtracting(freshIDs) { remove(gone) }
+        for gone in Set(panes.keys).subtracting(freshIDs) {
+            remove(gone)
+            didChange = true
+        }
         var newTabs: [String: TabInfo] = [:]
         for t in snapshot.tabs { newTabs[t.tabID] = t }
-        tabs = newTabs
+        if tabs != newTabs {
+            tabs = newTabs
+            didChange = true
+        }
         var newWorkspaces: [String: WorkspaceInfo] = [:]
         for w in snapshot.workspaces { newWorkspaces[w.workspaceID] = w }
-        workspaces = newWorkspaces
-        focusedPaneID = snapshot.focusedPaneID
+        if workspaces != newWorkspaces {
+            workspaces = newWorkspaces
+            didChange = true
+        }
+        if focusedPaneID != snapshot.focusedPaneID {
+            focusedPaneID = snapshot.focusedPaneID
+            didChange = true
+        }
 
         var newlyBlocked: [String] = []
         for pane in fresh {
-            let previous = panes[pane.paneID]?.agentStatus
+            let previousPane = panes[pane.paneID]
+            let previous = previousPane?.agentStatus
             // Store the full fresh record (keeps cwd/agent/label fresh too).
-            panes[pane.paneID] = pane
+            if previousPane != pane {
+                panes[pane.paneID] = pane
+                didChange = true
+            }
             if previous != pane.agentStatus {
                 applyTransition(paneID: pane.paneID, from: previous, to: pane.agentStatus)
                 if pane.agentStatus == .blocked && previous != .blocked {
@@ -142,9 +159,10 @@ public final class StateStore {
                 }
             } else if pane.agentStatus == .working && workingSince[pane.paneID] == nil {
                 workingSince[pane.paneID] = Date()
+                didChange = true
             }
         }
-        bump()
+        if didChange { bump() }
         return StateTransitionResult(
             newlyBlockedPaneIDs: newlyBlocked,
             newlyFinishedPaneIDs: Array(finishedUnseen.subtracting(finishedBefore)))
