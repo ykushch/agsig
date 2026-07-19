@@ -94,6 +94,39 @@ struct InteractionResponsePlannerTests {
         #expect(try planner.plan(.clearTextEntry, for: interaction).flattenedKeys == ["tab"])
     }
 
+    @Test("Claude text choices navigate from the fresh cursor before typing")
+    func choiceTextEntry() throws {
+        let interaction = PendingInteraction(
+            paneID: "w1:p1", kind: .question, title: "Choose",
+            choices: [
+                InteractionChoice(label: "A"),
+                InteractionChoice(kind: .textEntry, label: "Type something"),
+            ],
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: 0, mechanism: .arrowNavigate),
+            capabilities: [.selectOne, .enterText, .deny], evidence: evidence)
+        #expect(try planner.plan(
+            .submitChoiceText(1, "custom answer"), for: interaction).operations == [
+                .sendKeys(["down"]), .sendText("custom answer"),
+                .sendKeys(["enter"]),
+            ])
+    }
+
+    @Test("step targeting uses the fresh active step")
+    func targetStep() throws {
+        let interaction = PendingInteraction(
+            paneID: "w1:p1", kind: .question, title: "Choose",
+            steps: (1...4).map {
+                InteractionStep(label: "Step \($0)", isAnswered: false,
+                                isSubmit: $0 == 4)
+            },
+            presentation: InteractionPresentation(
+                activeStepIndex: 2, mechanism: .arrowNavigate),
+            capabilities: [.navigateSteps, .deny], evidence: evidence)
+        #expect(try planner.plan(.navigateToStep(0), for: interaction).flattenedKeys
+            == ["left", "left"])
+    }
+
     @Test("ambiguous approvals expose denial but no structured submit")
     func ambiguousApproval() throws {
         let interaction = PendingInteraction(
@@ -184,5 +217,33 @@ struct InteractionDisplayModelTests {
                 #expect(display.supportMessage?.contains("ambiguous") == true)
             }
         }
+    }
+
+    @Test("Codex display exposes only response mechanisms M4 can execute safely")
+    func actionableControls() throws {
+        let classifier = PromptClassifier()
+        func display(_ fixture: String) -> InteractionDisplayModel {
+            let text = Fixtures.string("interactions/\(fixture)/detection.txt")
+            return InteractionDisplayModel(interaction: classifier.classifyInteraction(
+                paneID: "w1:p2", agent: "codex", text: text))
+        }
+
+        let question = display(
+            "codex-plan-single-select-q1-df1ba0216047.fixture")
+        #expect(question.choicesAreActionable)
+        #expect(question.showsBeginTextEntry)
+        #expect(!question.showsTextEntry)
+        #expect(question.showsCancel)
+
+        let notes = display(
+            "codex-plan-free-text-notes-q3-7cbd68a04fb3.fixture")
+        #expect(notes.showsTextEntry)
+        #expect(!notes.showsBeginTextEntry)
+
+        let approval = display(
+            "codex-command-approval-3dd8a319ff17.fixture")
+        #expect(!approval.choicesAreActionable)
+        #expect(approval.showsCancel)
+        #expect(!approval.exposesStructuredSubmit)
     }
 }

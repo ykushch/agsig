@@ -1,12 +1,13 @@
 import SwiftUI
 import HerdrClient
 
-/// Faithful normalized Codex presentation. M3 intentionally has no structured
-/// response closure; M4 will add one behind fresh interaction revalidation.
+/// Faithful normalized Codex presentation. Every structured action is routed to
+/// M4's fresh-read responder; manual terminal controls remain outside this view.
 struct CodexInteractionView: View {
     let interaction: PendingInteraction
     @Binding var manualText: String
-    let typeTextWithoutSubmit: () -> Void
+    let isResponding: Bool
+    let respond: (InteractionResponseIntent) -> Void
 
     private var display: InteractionDisplayModel {
         InteractionDisplayModel(interaction: interaction)
@@ -42,7 +43,15 @@ struct CodexInteractionView: View {
                     }
                 }
             }
+            if display.showsBeginTextEntry {
+                Button("Add notes") { respond(.beginTextEntry) }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.cyan)
+                    .disabled(isResponding)
+            }
             if display.showsTextEntry { manualTextEntry }
+            structuredControls
             if let message = display.supportMessage {
                 Text(message)
                     .font(.system(size: 9, weight: .medium))
@@ -53,7 +62,21 @@ struct CodexInteractionView: View {
         }
     }
 
+    @ViewBuilder
     private func choiceRow(_ choice: InteractionDisplayChoice) -> some View {
+        if display.choicesAreActionable {
+            Button { respond(choiceIntent(choice)) } label: {
+                choiceContent(choice)
+            }
+            .buttonStyle(.plain)
+            .disabled(isResponding)
+            .help("Re-read this prompt and select option \(choice.index + 1)")
+        } else {
+            choiceContent(choice)
+        }
+    }
+
+    private func choiceContent(_ choice: InteractionDisplayChoice) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: choice.isSelected ? "chevron.right" : "circle")
                 .font(.system(size: choice.isSelected ? 10 : 5, weight: .bold))
@@ -91,28 +114,89 @@ struct CodexInteractionView: View {
             choice.isSelected ? Color.green.opacity(0.6) : .clear, lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel(choice))
+        .accessibilityAddTraits(display.choicesAreActionable ? .isButton : [])
     }
 
     private var manualTextEntry: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Manual notes / text")
+            Text("Notes / text")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.white.opacity(0.5))
             HStack(spacing: 6) {
-                TextField("type without submitting…", text: $manualText)
+                TextField("type your answer…", text: $manualText)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11))
-                    .onSubmit(typeTextWithoutSubmit)
-                Button("Type") { typeTextWithoutSubmit() }
+                    .onSubmit { submitText() }
+                    .disabled(isResponding)
+                Button("Submit") { submitText() }
                     .buttonStyle(.plain)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.cyan)
-                    .disabled(manualText.isEmpty)
-                    .help("Type into the pane without pressing Enter")
+                    .disabled(manualText.isEmpty || isResponding)
+                    .help("Revalidate the prompt, type this text, and submit it")
             }
+            Button("Clear notes") { respond(.clearTextEntry) }
+                .buttonStyle(.plain)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+                .disabled(isResponding)
         }
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.cyan.opacity(0.09)))
+    }
+
+    @ViewBuilder
+    private var structuredControls: some View {
+        if interaction.capabilities.contains(.navigateSteps) {
+            HStack(spacing: 12) {
+                Button("← Previous") { respond(.navigatePrevious) }
+                Button("Next →") { respond(.navigateNext) }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.cyan)
+            .disabled(isResponding)
+        }
+        if interaction.kind == .approval {
+            HStack(spacing: 12) {
+                if interaction.presentation.mechanism != .ambiguous {
+                    Button("Approve") { respond(.approve) }
+                }
+                Button("Deny") { respond(.deny) }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.cyan)
+            .disabled(isResponding)
+        } else if display.showsCancel {
+            Button("Cancel") { respond(.cancel) }
+                .buttonStyle(.plain)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+                .disabled(isResponding)
+        }
+        if isResponding {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Revalidating live prompt…")
+            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(.white.opacity(0.6))
+        }
+    }
+
+    private func choiceIntent(_ choice: InteractionDisplayChoice)
+        -> InteractionResponseIntent {
+        if let checked = choice.isChecked {
+            return .setChoice(choice.index, checked: !checked)
+        }
+        return .selectChoice(choice.index)
+    }
+
+    private func submitText() {
+        let text = manualText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        respond(.submitText(text))
     }
 
     private func accessibilityLabel(_ choice: InteractionDisplayChoice) -> String {

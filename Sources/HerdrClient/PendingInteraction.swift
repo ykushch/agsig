@@ -280,8 +280,6 @@ public extension PendingInteraction {
         }
         let mechanism: InteractionMechanism = if prompt.isMultiSelect {
             .multiSelect
-        } else if prompt.options.contains(where: \.isTextEntry) {
-            .textEntry
         } else {
             prompt.answerStyle == .arrowNavigate ? .arrowNavigate : .numberedShortcut
         }

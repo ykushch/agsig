@@ -98,11 +98,16 @@ final class NotchViewModel {
     @ObservationIgnored private var client: HerdrClient
     @ObservationIgnored private let classifier = PromptClassifier()
     @ObservationIgnored private lazy var actions = Actions(client: client)
+    @ObservationIgnored private lazy var interactionProvider =
+        ScreenInteractionProvider(client: client, classifier: classifier)
+    @ObservationIgnored private lazy var interactionResponder = InteractionResponder(
+        provider: interactionProvider, actions: actions)
+    @ObservationIgnored private var draftStore = InteractionDraftStore()
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     /// True while an action (send keys + settle) is in flight; serializes actions
     /// so overlapping key-sends can't misread each other's redraw frames.
-    @ObservationIgnored private var isActing = false
+    private(set) var isActing = false
 
     init(client: HerdrClient = HerdrClient()) {
         self.client = client
@@ -114,6 +119,11 @@ final class NotchViewModel {
         stop()
         client = HerdrClient(socketPath: socketPath)
         actions = Actions(client: client)
+        interactionProvider = ScreenInteractionProvider(
+            client: client, classifier: classifier)
+        interactionResponder = InteractionResponder(
+            provider: interactionProvider, actions: actions)
+        draftStore = InteractionDraftStore()
         connection = .connecting
         selectedPaneID = nil
         selectedPrompt = nil
@@ -254,6 +264,7 @@ final class NotchViewModel {
         let prompts = await readPrompts(paneID)
         selectedPrompt = prompts.legacy
         selectedInteraction = prompts.interaction
+        draftStore.observe(prompts.interaction)
         selectedPaneID = paneID
         replyText = ""
         expand()
@@ -323,6 +334,7 @@ final class NotchViewModel {
                 let prompts = await readPrompts(paneID)
                 selectedPrompt = prompts.legacy
                 selectedInteraction = prompts.interaction
+                draftStore.observe(prompts.interaction)
             } else {
                 selectedPrompt = nil
                 selectedInteraction = nil
@@ -344,29 +356,29 @@ final class NotchViewModel {
     }
 
     func approveSelected() {
-        guard let pane = selectedPaneID, let prompt = selectedPrompt else { return }
-        runAction { try await self.actions.approve(pane: pane, prompt: prompt) }
+        respondToSelectedInteraction(.approve)
     }
     func denySelected() {
-        guard let pane = selectedPaneID, let prompt = selectedPrompt else { return }
-        runAction { try await self.actions.deny(pane: pane, prompt: prompt) }
+        guard let interaction = selectedInteraction else { return }
+        respondToSelectedInteraction(interaction.kind == .approval ? .deny : .cancel)
     }
     func answerSelected(index: Int) {
-        guard let pane = selectedPaneID else { return }
-        Task { @MainActor in
-            let prompts = await readPrompts(pane)
-            let prompt = prompts.legacy
-            guard prompt.options.indices.contains(index) else { lastError = "That option is no longer available."; return }
-            selectedPrompt = prompt
-            selectedInteraction = prompts.interaction
-            runAction { try await self.actions.answer(pane: pane, prompt: prompt, optionIndex: index) }
-        }
+        respondToSelectedInteraction(.selectChoice(index))
     }
     func replySelected() {
         guard let pane = selectedPaneID else { return }
         let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        runAction { try await self.actions.reply(pane: pane, text: text) }
+        if let interaction = selectedInteraction,
+           interaction.kind != .unknown, interaction.kind != .freeText {
+            guard interaction.presentation.mechanism == .textEntry else {
+                lastError = "Open this interaction's text field before submitting text."
+                return
+            }
+            respondToSelectedInteraction(.submitText(text))
+            return
+        }
+        runManualAction { try await self.actions.reply(pane: pane, text: text) }
     }
     /// Explicit manual typing for partially supported normalized interactions.
     /// It does not press Enter; the user remains in control of submission.
@@ -374,27 +386,18 @@ final class NotchViewModel {
         guard let pane = selectedPaneID else { return }
         let text = replyText
         guard !text.isEmpty else { return }
-        runAction { try await self.actions.reply(pane: pane, text: text, submit: false) }
+        runManualAction { try await self.actions.reply(pane: pane, text: text, submit: false) }
     }
     func submitTextOption(index: Int, text: String) {
-        guard let pane = selectedPaneID, let prompt = selectedPrompt,
-              prompt.options.indices.contains(index), !text.isEmpty else { return }
-        runAction {
-            let keys = prompt.keysToAnswer(optionIndex: index).dropLast()
-            if !keys.isEmpty { _ = try await self.actions.sendRawKeys(pane: pane, keys: Array(keys)) }
-            _ = try await self.actions.reply(pane: pane, text: text)
-            return .sent
-        }
+        guard !text.isEmpty else { return }
+        respondToSelectedInteraction(.submitChoiceText(index, text))
     }
     func navigateToStep(_ index: Int) {
-        guard let prompt = selectedPrompt else { return }
-        let keys = prompt.keysToNavigate(toStepIndex: index)
-        guard !keys.isEmpty else { lastError = "Can't jump tabs right now — press ↑/↓ to focus the question first, then tap a tab."; return }
-        sendRawKeysSelected(keys)
+        respondToSelectedInteraction(.navigateToStep(index))
     }
     func navigateStep(_ delta: Int) {
-        guard let prompt = selectedPrompt, let current = prompt.currentStepIndex else { return }
-        navigateToStep(current + delta)
+        guard selectedInteraction?.capabilities.contains(.navigateSteps) == true else { return }
+        respondToSelectedInteraction(delta < 0 ? .navigatePrevious : .navigateNext)
     }
     func sendArrowToSelected(_ key: String) { sendRawKeysSelected([key]) }
     func sendRawKeysSelected(_ keys: [String]) {
@@ -402,7 +405,7 @@ final class NotchViewModel {
         sendRawKeys(pane: pane, keys: keys)
     }
     private func sendRawKeys(pane: String, keys: [String]) {
-        runAction { try await self.actions.sendRawKeys(pane: pane, keys: keys) }
+        runManualAction { try await self.actions.sendRawKeys(pane: pane, keys: keys) }
     }
     func jumpSelected() { if let pane = selectedPaneID { jump(pane) } }
     func jump(_ pane: String) {
@@ -413,7 +416,10 @@ final class NotchViewModel {
         }
     }
 
-    private func runAction(_ body: @escaping @MainActor () async throws -> ActionResult) {
+    /// Manual/raw terminal actions deliberately remain available for fallback
+    /// screens. Structured controls use `respondToSelectedInteraction` instead.
+    private func runManualAction(
+        _ body: @escaping @MainActor () async throws -> ActionResult) {
         guard !isActing else { return }
         isActing = true; lastError = nil
         Task { @MainActor in
@@ -421,13 +427,13 @@ final class NotchViewModel {
             do {
                 _ = try await body()
                 replyText = ""
-                await refreshPromptAfterAction()
+                await refreshPromptAfterManualAction()
             } catch let ActionError.keysRejected(message) { lastError = message }
             catch { lastError = String(describing: error) }
         }
     }
 
-    private func refreshPromptAfterAction() async {
+    private func refreshPromptAfterManualAction() async {
         guard let pane = selectedPaneID else { return }
         let previous = selectedPrompt
         var stable: ClassifiedPrompt?
@@ -440,8 +446,58 @@ final class NotchViewModel {
             let next = prompts.legacy
             selectedPrompt = next
             selectedInteraction = prompts.interaction
+            draftStore.observe(prompts.interaction)
             if next == stable { count += 1 } else { stable = next; count = 1 }
             if count >= 2, next != previous { return }
+        }
+    }
+
+    /// The only entry point for structured UI actions. The responder re-reads
+    /// and validates stable identity before it can execute any operation.
+    func respondToSelectedInteraction(_ intent: InteractionResponseIntent) {
+        guard !isActing, let pane = selectedPaneID,
+              let interaction = selectedInteraction else { return }
+        if !replyText.isEmpty {
+            _ = draftStore.setText(replyText, for: interaction)
+        }
+        let request = InteractionResponseRequest(
+            paneID: pane, agentID: store.panes[pane]?.agent,
+            paneRevision: store.panes[pane]?.revision,
+            expectedFingerprint: interaction.fingerprint, intent: intent)
+        isActing = true
+        lastError = nil
+        Task { @MainActor in
+            defer { isActing = false }
+            do {
+                let result = try await interactionResponder.respond(request)
+                guard selectedPaneID == pane else { return }
+                if let settled = result.settledInteraction {
+                    selectedInteraction = settled
+                    draftStore.observe(settled)
+                }
+                // One final paired read updates the temporary Claude legacy view;
+                // settling and all safety decisions already happened in responder.
+                let prompts = await readPrompts(pane)
+                guard selectedPaneID == pane else { return }
+                selectedPrompt = prompts.legacy
+                selectedInteraction = prompts.interaction
+                draftStore.observe(prompts.interaction)
+                replyText = ""
+            } catch let InteractionResponderError.staleInteraction(_, actual) {
+                guard selectedPaneID == pane else { return }
+                selectedInteraction = actual
+                draftStore.observe(actual)
+                if let text = actual.evidence.capturedText {
+                    selectedPrompt = classifier.classify(
+                        agent: actual.evidence.agentID, text: text)
+                }
+                lastError = "This question changed before selection. Nothing was sent; review the refreshed options."
+            } catch let ActionError.keysRejected(message) {
+                lastError = message
+            } catch {
+                lastError = (error as? LocalizedError)?.errorDescription
+                    ?? String(describing: error)
+            }
         }
     }
 }

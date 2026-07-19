@@ -5,10 +5,12 @@ public enum InteractionResponseIntent: Sendable, Equatable {
     case setChoice(Int, checked: Bool)
     case enterText(String)
     case submitText(String)
+    case submitChoiceText(Int, String)
     case beginTextEntry
     case clearTextEntry
     case navigatePrevious
     case navigateNext
+    case navigateToStep(Int)
     case submit
     case approve
     case deny
@@ -57,6 +59,9 @@ public struct InteractionResponsePlanner: Sendable {
                      for interaction: PendingInteraction) throws -> InteractionResponsePlan {
         switch intent {
         case let .selectChoice(index):
+            guard interaction.capabilities.contains(.selectOne) else {
+                throw InteractionPlanningError.unsupportedIntent
+            }
             return try planChoice(index, for: interaction, toggle: false)
         case let .setChoice(index, checked):
             return try planCheckedChoice(index, checked: checked, for: interaction)
@@ -75,6 +80,18 @@ public struct InteractionResponsePlanner: Sendable {
             return InteractionResponsePlan(operations: [
                 .sendText(text), .sendKeys(["enter"]),
             ])
+        case let .submitChoiceText(index, text):
+            guard interaction.capabilities.contains(.enterText),
+                  interaction.choices.indices.contains(index),
+                  interaction.choices[index].kind == .textEntry else {
+                throw InteractionPlanningError.unsupportedIntent
+            }
+            guard !text.isEmpty else { throw InteractionPlanningError.emptyText }
+            let navigation = try keysToFocusChoice(index, for: interaction)
+            var operations: [InteractionResponseOperation] = []
+            if !navigation.isEmpty { operations.append(.sendKeys(navigation)) }
+            operations += [.sendText(text), .sendKeys(["enter"])]
+            return InteractionResponsePlan(operations: operations)
         case .beginTextEntry:
             guard interaction.capabilities.contains(.enterText),
                   interaction.presentation.mechanism != .textEntry else {
@@ -96,6 +113,15 @@ public struct InteractionResponsePlanner: Sendable {
                 throw InteractionPlanningError.unsupportedIntent
             }
             return keys(["right"])
+        case let .navigateToStep(index):
+            guard interaction.capabilities.contains(.navigateSteps),
+                  interaction.steps.indices.contains(index),
+                  let current = interaction.presentation.activeStepIndex else {
+                throw InteractionPlanningError.unsupportedIntent
+            }
+            let delta = index - current
+            return keys(Array(
+                repeating: delta >= 0 ? "right" : "left", count: abs(delta)))
         case .submit:
             guard interaction.presentation.mechanism != .ambiguous else {
                 throw InteractionPlanningError.ambiguousMechanism
@@ -165,6 +191,24 @@ public struct InteractionResponsePlanner: Sendable {
         let currentlyChecked = checked.contains(index)
         if currentlyChecked == desired { return .noOp }
         return try planChoice(index, for: interaction, toggle: true)
+    }
+
+    private func keysToFocusChoice(_ index: Int,
+                                   for interaction: PendingInteraction) throws -> [String] {
+        switch interaction.presentation.mechanism {
+        case .numberedShortcut:
+            return [String(index + 1)]
+        case .arrowNavigate:
+            guard let cursor = interaction.presentation.selectedChoiceIndex else {
+                throw InteractionPlanningError.missingCursor
+            }
+            let delta = index - cursor
+            return Array(repeating: delta >= 0 ? "down" : "up", count: abs(delta))
+        case .ambiguous:
+            throw InteractionPlanningError.ambiguousMechanism
+        case .multiSelect, .textEntry, .manual:
+            throw InteractionPlanningError.unsupportedIntent
+        }
     }
 
     private func keys(_ keys: [String]) -> InteractionResponsePlan {

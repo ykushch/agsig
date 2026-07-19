@@ -25,6 +25,9 @@ public struct InteractionDisplayModel: Sendable, Equatable {
     public let progressText: String?
     public let choices: [InteractionDisplayChoice]
     public let showsTextEntry: Bool
+    public let showsBeginTextEntry: Bool
+    public let choicesAreActionable: Bool
+    public let showsCancel: Bool
     public let showsManualControls: Bool
     public let exposesStructuredSubmit: Bool
     public let supportMessage: String?
@@ -42,7 +45,18 @@ public struct InteractionDisplayModel: Sendable, Equatable {
                 isSelected: interaction.presentation.selectedChoiceIndex == index,
                 isChecked: isMultiSelect ? checked.contains(index) : nil)
         }
-        showsTextEntry = interaction.capabilities.contains(.enterText)
+        let supportsText = interaction.capabilities.contains(.enterText)
+        showsTextEntry = supportsText
+            && interaction.presentation.mechanism == .textEntry
+        showsBeginTextEntry = supportsText
+            && interaction.presentation.mechanism != .textEntry
+            && interaction.kind == .question
+        choicesAreActionable = interaction.presentation.mechanism != .ambiguous
+            && interaction.presentation.mechanism != .manual
+            && (interaction.capabilities.contains(.selectOne)
+                || interaction.capabilities.contains(.selectMany))
+            && interaction.kind != .approval
+        showsCancel = interaction.capabilities.contains(.deny)
         showsManualControls = true
         exposesStructuredSubmit = interaction.presentation.mechanism != .ambiguous
             && interaction.presentation.mechanism != .manual
@@ -52,7 +66,7 @@ public struct InteractionDisplayModel: Sendable, Equatable {
         } else if interaction.kind == .unknown {
             supportMessage = "Unrecognized prompt — use manual controls."
         } else {
-            supportMessage = "Safe response execution will revalidate this prompt before sending."
+            supportMessage = "Responses are revalidated against the live prompt before sending."
         }
     }
 

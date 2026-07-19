@@ -44,6 +44,7 @@ StateStore (@MainActor @Observable)  → hydrate(snapshot) then apply(event)
     │     ├─ CodexScreenAdapter
     │     └─ GenericScreenAdapter (safe raw fallback)
     ├─→ InteractionDisplayModel + InteractionResponsePlanner (pure; no transport)
+    ├─→ ScreenInteractionProvider → InteractionResponder (fresh-read safety boundary)
     ├─→ PromptClassifier  (temporary ClassifiedPrompt compatibility facade)
     └─→ Actions           (approve/deny/answer/reply/jump → send_keys/send_text/focus + Ghostty raise)
     │

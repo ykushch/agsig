@@ -134,7 +134,8 @@ struct PlaceholderNotchView: View {
             CodexInteractionView(
                 interaction: interaction,
                 manualText: $model.replyText,
-                typeTextWithoutSubmit: model.typeTextWithoutSubmitSelected)
+                isResponding: model.isActing,
+                respond: model.respondToSelectedInteraction)
             manualDriveRow()
         }
     }
