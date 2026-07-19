@@ -84,6 +84,7 @@ struct PlaceholderNotchView: View {
                         interaction: interaction,
                         draftText: $model.replyText,
                         phase: state.phase,
+                        hotkeySymbols: model.hotkeySymbols,
                         respond: model.respondToSelectedInteraction)
                 } else if state.phase == .reading {
                     ProgressView("Reading live prompt…").foregroundStyle(.white.opacity(0.7))

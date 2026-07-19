@@ -34,6 +34,8 @@ public struct InteractionDisplayModel: Sendable, Equatable {
     public let showsCancel: Bool
     public let showsManualControls: Bool
     public let exposesStructuredSubmit: Bool
+    public let approvalOnceAvailable: Bool
+    public let approvalPersistChoiceIndex: Int?
     public let supportMessage: String?
 
     public init(interaction: PendingInteraction) {
@@ -66,6 +68,14 @@ public struct InteractionDisplayModel: Sendable, Equatable {
         exposesStructuredSubmit = interaction.presentation.mechanism != .ambiguous
             && interaction.presentation.mechanism != .manual
             && interaction.kind != .unknown
+        approvalOnceAvailable = interaction.kind == .approval
+            && interaction.presentation.mechanism == .explicitShortcut
+            && interaction.choices.first?.shortcutKeys == ["y"]
+        approvalPersistChoiceIndex = interaction.kind == .approval
+            && interaction.presentation.mechanism == .explicitShortcut
+            ? interaction.choices.indices.first {
+                interaction.choices[$0].shortcutKeys == ["p"]
+            } : nil
         if interaction.presentation.mechanism == .ambiguous {
             supportMessage = "Response mechanism is ambiguous — use manual controls."
         } else if interaction.kind == .unknown {

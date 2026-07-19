@@ -264,6 +264,13 @@ struct InteractionDisplayModelTests {
         #expect(!approval.choicesAreActionable)
         #expect(approval.showsCancel)
         #expect(approval.exposesStructuredSubmit)
+        #expect(approval.approvalOnceAvailable)
+        #expect(approval.approvalPersistChoiceIndex == 1)
+        #expect(approval.choices[1].description?.contains("printf") == false)
+        #expect(approval.choices[1].description?.contains("touch /private/tmp/") == true)
+
+        #expect(!question.approvalOnceAvailable)
+        #expect(question.approvalPersistChoiceIndex == nil)
     }
 
     @Test("attention rows surface prompt, phases, stale drafts, errors, and accessibility")

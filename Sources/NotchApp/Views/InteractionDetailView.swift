@@ -6,6 +6,7 @@ struct InteractionDetailView: View {
     let interaction: PendingInteraction
     @Binding var draftText: String
     let phase: PaneInteractionPhase
+    let hotkeySymbols: String
     let respond: (InteractionResponseIntent) -> Void
 
     private var display: InteractionDisplayModel {
@@ -46,6 +47,19 @@ struct InteractionDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             phaseStatus
+        }
+        .padding(interaction.kind == .approval ? 10 : 0)
+        .background {
+            if interaction.kind == .approval {
+                RoundedRectangle(cornerRadius: 11)
+                    .fill(Color.orange.opacity(0.11))
+            }
+        }
+        .overlay {
+            if interaction.kind == .approval {
+                RoundedRectangle(cornerRadius: 11)
+                    .stroke(Color.orange.opacity(0.38), lineWidth: 1)
+            }
         }
     }
 
@@ -101,6 +115,13 @@ struct InteractionDetailView: View {
                 }
             }
             Spacer(minLength: 0)
+            if choice.index < 9 {
+                Text("\(hotkeySymbols)\(choice.index + 1)")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.42))
+                    .padding(.horizontal, 5).padding(.vertical, 2)
+                    .background(Capsule().fill(.white.opacity(0.08)))
+            }
         }
         .padding(8).frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(
@@ -132,16 +153,46 @@ struct InteractionDetailView: View {
             }.detailActionStyle(disabled: phase.isBusy)
         }
         if interaction.kind == .approval {
-            HStack(spacing: 12) {
-                if interaction.presentation.mechanism != .ambiguous {
-                    Button("Approve") { respond(.approve) }
+            VStack(alignment: .leading, spacing: 7) {
+                Label("Command approval", systemImage: "shield.lefthalf.filled")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.orange)
+                HStack(spacing: 7) {
+                    if display.approvalOnceAvailable {
+                        approvalButton("Allow Once", systemImage: "checkmark",
+                                       color: .green) { respond(.approve) }
+                    }
+                    if let index = display.approvalPersistChoiceIndex {
+                        approvalButton("Allow Prefix", systemImage: "checkmark.shield",
+                                       color: .orange) { respond(.selectChoice(index)) }
+                    }
+                    if interaction.capabilities.contains(.deny) {
+                        approvalButton("Deny", systemImage: "xmark",
+                                       color: .red) { respond(.deny) }
+                    }
                 }
-                Button("Deny") { respond(.deny) }
-            }.detailActionStyle(disabled: phase.isBusy)
+            }
         } else if display.showsCancel {
             Button("Cancel") { respond(.cancel) }
                 .detailActionStyle(disabled: phase.isBusy)
         }
+    }
+
+    private func approvalButton(
+        _ title: String, systemImage: String, color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 7).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 7).fill(color.opacity(0.15)))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(color.opacity(0.35)))
+        }
+        .buttonStyle(.plain)
+        .disabled(phase.isBusy)
     }
 
     @ViewBuilder private var phaseStatus: some View {
