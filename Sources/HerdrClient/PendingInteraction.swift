@@ -124,6 +124,59 @@ public struct InteractionEvidence: Sendable, Equatable {
     }
 }
 
+/// Structured, display-ready content extracted from terminal evidence by the
+/// exact-agent adapter. Views consume this normalized payload and never parse
+/// raw terminal bytes themselves.
+public enum InteractionContentEvidence: Sendable, Equatable {
+    case command(InteractionCommandEvidence)
+    case diff(InteractionDiffEvidence)
+}
+
+public struct InteractionCommandEvidence: Sendable, Equatable {
+    public let environment: String?
+    public let reason: String?
+    public let command: String
+
+    public init(environment: String? = nil, reason: String? = nil,
+                command: String) {
+        self.environment = environment
+        self.reason = reason
+        self.command = command
+    }
+}
+
+public enum InteractionDiffLineKind: String, Sendable, Equatable {
+    case context
+    case removal
+    case addition
+}
+
+public struct InteractionDiffLine: Sendable, Equatable {
+    public let lineNumber: Int?
+    public let kind: InteractionDiffLineKind
+    public let text: String
+
+    public init(lineNumber: Int? = nil, kind: InteractionDiffLineKind,
+                text: String) {
+        self.lineNumber = lineNumber
+        self.kind = kind
+        self.text = text
+    }
+}
+
+public struct InteractionDiffEvidence: Sendable, Equatable {
+    public let filePath: String
+    public let lines: [InteractionDiffLine]
+
+    public init(filePath: String, lines: [InteractionDiffLine]) {
+        self.filePath = filePath
+        self.lines = lines
+    }
+
+    public var additions: Int { lines.count { $0.kind == .addition } }
+    public var removals: Int { lines.count { $0.kind == .removal } }
+}
+
 public enum InteractionSafetyState: String, Sendable, Equatable {
     case fresh
     case responding
@@ -148,6 +201,7 @@ public struct PendingInteraction: Sendable, Equatable {
     public let presentation: InteractionPresentation
     public let capabilities: Set<InteractionCapability>
     public let evidence: InteractionEvidence
+    public let contentEvidence: InteractionContentEvidence?
     public let safetyState: InteractionSafetyState
 
     public init(paneID: String, kind: InteractionKind, title: String? = nil,
@@ -156,6 +210,7 @@ public struct PendingInteraction: Sendable, Equatable {
                 presentation: InteractionPresentation,
                 capabilities: Set<InteractionCapability> = [],
                 evidence: InteractionEvidence,
+                contentEvidence: InteractionContentEvidence? = nil,
                 safetyState: InteractionSafetyState = .fresh) {
         self.paneID = paneID
         self.kind = kind
@@ -167,6 +222,7 @@ public struct PendingInteraction: Sendable, Equatable {
         self.presentation = presentation
         self.capabilities = capabilities
         self.evidence = evidence
+        self.contentEvidence = contentEvidence
         self.safetyState = safetyState
     }
 
@@ -179,6 +235,19 @@ public struct PendingInteraction: Sendable, Equatable {
         }
         for step in steps {
             fields += [Self.normalize(step.label), step.isAnswered ? "1" : "0", step.isSubmit ? "1" : "0"]
+        }
+        switch contentEvidence {
+        case .command(let command):
+            fields += ["command", Self.normalize(command.environment),
+                       Self.normalize(command.reason), Self.normalize(command.command)]
+        case .diff(let diff):
+            fields += ["diff", Self.normalize(diff.filePath)]
+            for line in diff.lines {
+                fields += [line.lineNumber.map(String.init) ?? "", line.kind.rawValue,
+                           Self.normalize(line.text)]
+            }
+        case nil:
+            fields.append("content:none")
         }
         let canonical = fields.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
         return InteractionFingerprint(rawValue: SHA256Digest.hex(of: Data(canonical.utf8)))

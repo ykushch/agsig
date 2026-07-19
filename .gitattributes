@@ -1,3 +1,4 @@
 # ANSI captures are byte-level protocol evidence. Do not normalize CRLF or
 # inspect terminal-cell padding as source whitespace; metadata hashes exact bytes.
 Tests/HerdrClientTests/Fixtures/interactions/**/visible.ansi binary
+Tests/HerdrClientTests/Fixtures/claude-interactions/**/visible.ansi binary

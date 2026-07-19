@@ -55,3 +55,7 @@ verifies the complete committed corpus.
   workspace: `y` ran the command once, while `p` persisted the displayed exact
   prefix and allowed the identical command to run a second time without another
   blocked prompt. The committed resolved fixtures retain both terminal outcomes.
+
+The sibling `claude-interactions/` corpus uses the same verified bundle format.
+Its edit-approval fixture was captured from a disposable Claude Code session in
+manual permission mode; the proposed patch was not accepted after capture.

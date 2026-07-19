@@ -15,14 +15,16 @@ struct PendingInteractionIdentityTests {
         presentation: InteractionPresentation = InteractionPresentation(
             selectedChoiceIndex: 0, checkedChoiceIndexes: [], activeStepIndex: 0,
             mechanism: .arrowNavigate),
-        revision: Int = 10
+        revision: Int = 10,
+        contentEvidence: InteractionContentEvidence? = nil
     ) -> PendingInteraction {
         PendingInteraction(
             paneID: pane, kind: .question, title: title, body: "Pick one option",
             progress: progress, choices: choices,
             presentation: presentation,
             evidence: InteractionEvidence(source: .screen, providerID: "test",
-                                          paneRevision: revision, confidence: .exact))
+                                          paneRevision: revision, confidence: .exact),
+            contentEvidence: contentEvidence)
     }
 
     @Test("cursor, checks, ANSI, alignment, and revision do not change identity")
@@ -52,6 +54,9 @@ struct PendingInteractionIdentityTests {
             InteractionChoice(label: "Production", description: "Deploy after review"),
             InteractionChoice(label: "Staging", description: "Deploy privately"),
         ]).fingerprint != baseline)
+        #expect(interaction(contentEvidence: .command(InteractionCommandEvidence(
+            environment: "local", reason: "Build it", command: "swift build")))
+            .fingerprint != baseline)
         #expect(interaction(choices: [
             InteractionChoice(label: "Production", description: "Deploy publicly",
                               shortcutKeys: ["p"]),

@@ -97,7 +97,7 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
     ]
     public static let approvalMarkers = ["do you want to"]
     public static let denyMarkers = ["esc to cancel", "(esc)"]
-    public static let navigationMarkers = ["to navigate", "↑/↓"]
+    public static let navigationMarkers = ["to navigate", "↑/↓", "tab to amend"]
 
     public let adapterID = "claude-screen"
     public let agentIDs: Set<String> = ["claude"]
@@ -171,7 +171,56 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
             evidence: InteractionEvidence(
                 source: .screen, providerID: adapterID,
                 agentID: input.agentID, paneRevision: input.revisionAsInt,
-                confidence: .exact, capturedText: text))
+                confidence: .exact, capturedText: text),
+            contentEvidence: Self.parseDiffEvidence(text))
+    }
+
+    private static func parseDiffEvidence(_ text: String) -> InteractionContentEvidence? {
+        let lines = text.components(separatedBy: "\n")
+        guard let header = lines.lastIndex(where: { trimmed($0) == "Edit file" }),
+              lines.indices.contains(header + 1) else { return nil }
+        let filePath = trimmed(lines[header + 1])
+        guard !filePath.isEmpty,
+              let firstRule = lines.indices.first(where: {
+                  $0 > header + 1 && isDiffRule(lines[$0])
+              }),
+              let secondRule = lines.indices.first(where: {
+                  $0 > firstRule && isDiffRule(lines[$0])
+              }) else { return nil }
+
+        let parsed = lines[(firstRule + 1)..<secondRule].compactMap(parseDiffLine)
+        guard !parsed.isEmpty,
+              parsed.contains(where: { $0.kind != InteractionDiffLineKind.context }) else {
+            return nil
+        }
+        return .diff(InteractionDiffEvidence(filePath: filePath, lines: parsed))
+    }
+
+    private static func isDiffRule(_ line: String) -> Bool {
+        let value = trimmed(line)
+        return value.count >= 8 && value.allSatisfy { $0 == "╌" }
+    }
+
+    private static func parseDiffLine(_ line: String) -> InteractionDiffLine? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"^\s*(\d+)\s+([+-]?)(.*)$"#),
+              let match = regex.firstMatch(
+                in: line, range: NSRange(line.startIndex..., in: line)),
+              let numberRange = Range(match.range(at: 1), in: line),
+              let number = Int(line[numberRange]),
+              let markerRange = Range(match.range(at: 2), in: line),
+              let textRange = Range(match.range(at: 3), in: line) else { return nil }
+        let kind: InteractionDiffLineKind = switch line[markerRange] {
+        case "-": .removal
+        case "+": .addition
+        default: .context
+        }
+        return InteractionDiffLine(lineNumber: number, kind: kind,
+                                   text: String(line[textRange]))
+    }
+
+    private static func trimmed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -309,7 +358,22 @@ public struct CodexScreenAdapter: ScreenAdapter {
                 selectedChoiceIndex: raw.firstIndex(where: \.selected),
                 mechanism: verifiedShortcuts ? .explicitShortcut : .ambiguous),
             capabilities: [.approve, .deny, .selectOne],
-            evidence: Self.evidence(input, adapterID: adapterID, text: text))
+            evidence: Self.evidence(input, adapterID: adapterID, text: text),
+            contentEvidence: Self.parseCommandEvidence(approvalLines))
+    }
+
+    private static func parseCommandEvidence(
+        _ lines: [String]
+    ) -> InteractionContentEvidence? {
+        func value(after prefix: String) -> String? {
+            lines.lazy.map(trimmed).first { $0.hasPrefix(prefix) }.map {
+                trimmed(String($0.dropFirst(prefix.count)))
+            }.flatMap { $0.isEmpty ? nil : $0 }
+        }
+        guard let command = value(after: "$ ") else { return nil }
+        return .command(InteractionCommandEvidence(
+            environment: value(after: "Environment:"),
+            reason: value(after: "Reason:"), command: command))
     }
 
     private struct ParsedOption {

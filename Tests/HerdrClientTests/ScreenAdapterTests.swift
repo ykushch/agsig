@@ -109,6 +109,15 @@ struct CodexScreenAdapterCorpusTests {
                 #expect(interaction.capabilities.contains(.approve))
                 #expect(interaction.capabilities.contains(.deny))
                 #expect(interaction.choices.map(\.shortcutKeys) == [["y"], ["p"], ["esc"]])
+                if expected.name == "codex-command-approval-explicit-shortcuts" {
+                    guard case .command(let command) = interaction.contentEvidence else {
+                        Issue.record("missing typed command evidence")
+                        continue
+                    }
+                    #expect(command.environment == "local")
+                    #expect(command.reason == "Allow creating the requested empty file once-proof in the workspace?")
+                    #expect(command.command == "touch /private/tmp/notchagent-approval-proof.QD2TKh/once-proof")
+                }
             }
         }
     }
@@ -209,5 +218,34 @@ struct ClaudeScreenAdapterRegressionTests {
             #expect(interaction.evidence.capturedText == text)
             #expect(interaction.choices.map(\.label) == fixture.options.map(\.label))
         }
+    }
+
+    @Test("captured Claude edit approval exposes a typed diff")
+    func capturedEditDiff() throws {
+        let directory = Fixtures.url(
+            "claude-interactions/claude-edit-approval-diff-982df03912ba.fixture")
+        let metadata = try PaneFixtureExtractor().verifyFixture(at: directory)
+        let text = try String(contentsOf: directory.appendingPathComponent("detection.txt"),
+                              encoding: .utf8)
+        let interaction = PromptClassifier().classifyInteraction(
+            paneID: metadata.sourceCapture.paneID, agent: "claude", text: text,
+            paneRevision: metadata.sourceCapture.paneRevisionBefore)
+
+        #expect(interaction.kind == .approval)
+        #expect(interaction.title == "Do you want to make this edit to sample.txt?")
+        #expect(interaction.presentation.mechanism == .arrowNavigate)
+        #expect(interaction.choices.map(\.label) == metadata.annotations.optionLabels)
+        guard case .diff(let diff) = interaction.contentEvidence else {
+            Issue.record("missing typed diff evidence")
+            return
+        }
+        #expect(diff.filePath == "sample.txt")
+        #expect(diff.additions == 1)
+        #expect(diff.removals == 1)
+        #expect(diff.lines == [
+            InteractionDiffLine(lineNumber: 1, kind: .context, text: "alpha"),
+            InteractionDiffLine(lineNumber: 2, kind: .removal, text: "old value"),
+            InteractionDiffLine(lineNumber: 2, kind: .addition, text: "new value"),
+        ])
     }
 }

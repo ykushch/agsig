@@ -1,3 +1,4 @@
+import AppKit
 import HerdrClient
 import SwiftUI
 
@@ -24,7 +25,9 @@ struct InteractionDetailView: View {
                 Text(title).font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
             }
-            if let body = display.body, !body.isEmpty {
+            evidenceCard
+            if interaction.contentEvidence == nil,
+               let body = display.body, !body.isEmpty {
                 Text(body).font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.7)).textSelection(.enabled)
                     .lineLimit(8).fixedSize(horizontal: false, vertical: true)
@@ -61,6 +64,98 @@ struct InteractionDetailView: View {
                     .stroke(Color.orange.opacity(0.38), lineWidth: 1)
             }
         }
+    }
+
+    @ViewBuilder private var evidenceCard: some View {
+        switch interaction.contentEvidence {
+        case .command(let evidence):
+            commandCard(evidence)
+        case .diff(let evidence):
+            diffCard(evidence)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private func commandCard(_ evidence: InteractionCommandEvidence) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Label("Command", systemImage: "terminal")
+                    .font(.system(size: 9, weight: .semibold))
+                Spacer()
+                if let environment = evidence.environment {
+                    Text(environment.uppercased())
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.orange)
+                }
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(evidence.command, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.plain).help("Copy command")
+                .accessibilityLabel("Copy command")
+            }
+            Text(evidence.command)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.white).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            if let reason = evidence.reason {
+                Text(reason).font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(8).foregroundStyle(.white.opacity(0.75))
+        .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.35)))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.orange.opacity(0.28)))
+    }
+
+    private func diffCard(_ evidence: InteractionDiffEvidence) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                Label(evidence.filePath, systemImage: "doc.text")
+                    .font(.system(size: 9, weight: .semibold)).lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Text("+\(evidence.additions)").foregroundStyle(.green)
+                Text("−\(evidence.removals)").foregroundStyle(.red)
+            }
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
+            .padding(8)
+            ForEach(Array(evidence.lines.enumerated()), id: \.offset) { _, line in
+                HStack(alignment: .top, spacing: 6) {
+                    Text(line.lineNumber.map(String.init) ?? "")
+                        .frame(width: 20, alignment: .trailing)
+                        .foregroundStyle(.white.opacity(0.32))
+                    Text(diffMarker(line.kind)).frame(width: 7)
+                        .foregroundStyle(diffForeground(line.kind))
+                    Text(line.text).foregroundStyle(.white.opacity(0.86))
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: 9, design: .monospaced))
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(diffBackground(line.kind))
+            }
+        }
+        .background(RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.35)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.12)))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Proposed changes to \(evidence.filePath), \(evidence.additions) additions, \(evidence.removals) removals")
+    }
+
+    private func diffMarker(_ kind: InteractionDiffLineKind) -> String {
+        switch kind { case .context: " "; case .removal: "−"; case .addition: "+" }
+    }
+
+    private func diffForeground(_ kind: InteractionDiffLineKind) -> Color {
+        switch kind { case .context: .white.opacity(0.5); case .removal: .red; case .addition: .green }
+    }
+
+    private func diffBackground(_ kind: InteractionDiffLineKind) -> Color {
+        switch kind { case .context: .clear; case .removal: .red.opacity(0.12); case .addition: .green.opacity(0.12) }
     }
 
     @ViewBuilder private var stepBar: some View {
