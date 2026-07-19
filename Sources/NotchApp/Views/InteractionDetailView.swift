@@ -258,7 +258,10 @@ struct InteractionDetailView: View {
                                        color: .green) { respond(.approve) }
                     }
                     if let index = display.approvalPersistChoiceIndex {
-                        approvalButton("Allow Prefix", systemImage: "checkmark.shield",
+                        approvalButton(
+                            interaction.evidence.source == .native
+                                ? "Allow Always" : "Allow Prefix",
+                            systemImage: "checkmark.shield",
                                        color: .orange) { respond(.selectChoice(index)) }
                     }
                     if interaction.capabilities.contains(.deny) {

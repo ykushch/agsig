@@ -192,6 +192,7 @@ public struct InteractionFingerprint: RawRepresentable, Hashable, Sendable {
 
 public struct PendingInteraction: Sendable, Equatable {
     public let paneID: String
+    public let interactionID: String?
     public let kind: InteractionKind
     public let title: String?
     public let body: String?
@@ -204,7 +205,8 @@ public struct PendingInteraction: Sendable, Equatable {
     public let contentEvidence: InteractionContentEvidence?
     public let safetyState: InteractionSafetyState
 
-    public init(paneID: String, kind: InteractionKind, title: String? = nil,
+    public init(paneID: String, interactionID: String? = nil,
+                kind: InteractionKind, title: String? = nil,
                 body: String? = nil, progress: InteractionProgress? = nil,
                 choices: [InteractionChoice] = [], steps: [InteractionStep] = [],
                 presentation: InteractionPresentation,
@@ -213,6 +215,7 @@ public struct PendingInteraction: Sendable, Equatable {
                 contentEvidence: InteractionContentEvidence? = nil,
                 safetyState: InteractionSafetyState = .fresh) {
         self.paneID = paneID
+        self.interactionID = interactionID
         self.kind = kind
         self.title = title
         self.body = body
@@ -227,7 +230,8 @@ public struct PendingInteraction: Sendable, Equatable {
     }
 
     public var fingerprint: InteractionFingerprint {
-        var fields = [paneID, kind.rawValue, Self.normalize(title), Self.normalize(body)]
+        var fields = [paneID, interactionID ?? "", kind.rawValue,
+                      Self.normalize(title), Self.normalize(body)]
         fields += [progress?.current, progress?.total, progress?.unanswered].map { $0.map(String.init) ?? "" }
         for choice in choices {
             fields += [choice.kind.rawValue, Self.normalize(choice.label),

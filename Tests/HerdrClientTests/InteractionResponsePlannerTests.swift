@@ -294,6 +294,7 @@ struct InteractionDisplayModelTests {
         #expect(ready.stateText == "needs input")
         #expect(ready.summary == "Question 2/3 (2 unanswered)")
         #expect(ready.title == "Fix auth")
+        #expect(ready.modelName == nil)
         #expect(ready.accessibilityLabel.contains("Fix auth, claude, project"))
         #expect(ready.accessibilityLabel.contains("pane w1:p1"))
         let other = InteractionAttentionDisplayModel(
@@ -352,6 +353,12 @@ struct InteractionDisplayModelTests {
             status: .blocked, state: failed, isSelected: false)
         #expect(errorRow.stateText == "error")
         #expect(errorRow.summary == "Input rejected")
+
+        let modeled = InteractionAttentionDisplayModel(
+            paneID: "w1:p5", taskTitle: "Native task", agentName: "opencode",
+            modelName: "anthropic/claude-opus-4-1", workspaceLabel: "project",
+            status: .working, state: nil, isSelected: false)
+        #expect(modeled.accessibilityLabel.contains("anthropic/claude-opus-4-1"))
     }
 
     @Test("pane identity prefers title, label, then cwd basename")

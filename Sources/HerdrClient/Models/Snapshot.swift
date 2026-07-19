@@ -34,6 +34,7 @@ public struct PaneInfo: Codable, Sendable, Identifiable, Equatable {
     public let cwd: String?
     public let foregroundCwd: String?
     public let scroll: PaneScrollInfo?
+    public let tokens: [String: String]?
 
     public var id: String { paneID }
 
@@ -41,7 +42,8 @@ public struct PaneInfo: Codable, Sendable, Identifiable, Equatable {
                 focused: Bool, agentStatus: AgentStatus, revision: UInt64,
                 agent: String? = nil, displayAgent: String? = nil, customStatus: String? = nil,
                 label: String? = nil, title: String? = nil, cwd: String? = nil,
-                foregroundCwd: String? = nil, scroll: PaneScrollInfo? = nil) {
+                foregroundCwd: String? = nil, scroll: PaneScrollInfo? = nil,
+                tokens: [String: String]? = nil) {
         self.paneID = paneID
         self.terminalID = terminalID
         self.workspaceID = workspaceID
@@ -57,6 +59,7 @@ public struct PaneInfo: Codable, Sendable, Identifiable, Equatable {
         self.cwd = cwd
         self.foregroundCwd = foregroundCwd
         self.scroll = scroll
+        self.tokens = tokens
     }
 
     enum CodingKeys: String, CodingKey {
@@ -75,6 +78,7 @@ public struct PaneInfo: Codable, Sendable, Identifiable, Equatable {
         case cwd
         case foregroundCwd = "foreground_cwd"
         case scroll
+        case tokens
     }
 }
 
@@ -111,6 +115,7 @@ public struct WorkspaceInfo: Codable, Sendable, Identifiable, Equatable {
     public let tabCount: Int?
     public let activeTabID: String?
     public let agentStatus: AgentStatus?
+    public let tokens: [String: String]?
 
     public var id: String { workspaceID }
 
@@ -123,6 +128,7 @@ public struct WorkspaceInfo: Codable, Sendable, Identifiable, Equatable {
         case tabCount = "tab_count"
         case activeTabID = "active_tab_id"
         case agentStatus = "agent_status"
+        case tokens
     }
 }
 

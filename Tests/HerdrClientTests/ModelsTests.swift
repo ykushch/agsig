@@ -79,6 +79,25 @@ struct ModelsTests {
         #expect(pane.paneID == "w1:p1")
     }
 
+    @Test("herdr pane metadata tokens decode for native provider discovery")
+    func paneTokensDecode() throws {
+        let json: JSONValue = .object([
+            "pane_id": "w1:p1", "terminal_id": "t1", "workspace_id": "w1",
+            "tab_id": "w1:t1", "focused": false,
+            "agent_status": "blocked", "revision": 4,
+            "tokens": .object([
+                "opencode_url": "http://127.0.0.1:4096",
+                "opencode_session": "ses_123",
+                "opencode_model": "anthropic/claude-opus-4-1",
+            ]),
+        ])
+        let pane = try json.decode(PaneInfo.self)
+        #expect(pane.tokens?["opencode_session"] == "ses_123")
+        #expect(PaneDisplayIdentity.modelBadge(pane: pane)
+            == "anthropic/claude-opus-4-1")
+        #expect(OpenCodePaneDescriptor(pane: pane)?.sessionID == "ses_123")
+    }
+
     @Test("PaneAgentState has no done")
     func paneStateNoDone() {
         #expect(PaneAgentState(rawValue: "done") == nil)

@@ -58,24 +58,30 @@ public struct InteractionDisplayModel: Sendable, Equatable {
         showsBeginTextEntry = supportsText
             && interaction.presentation.mechanism != .textEntry
             && interaction.kind == .question
-        choicesAreActionable = interaction.presentation.mechanism != .ambiguous
+        let isNative = interaction.evidence.source == .native
+        choicesAreActionable = (isNative
+            || (interaction.presentation.mechanism != .ambiguous
             && interaction.presentation.mechanism != .manual
             && (interaction.capabilities.contains(.selectOne)
-                || interaction.capabilities.contains(.selectMany))
+                || interaction.capabilities.contains(.selectMany))))
             && interaction.kind != .approval
         showsCancel = interaction.capabilities.contains(.deny)
         showsManualControls = true
-        exposesStructuredSubmit = interaction.presentation.mechanism != .ambiguous
+        exposesStructuredSubmit = isNative
+            || (interaction.presentation.mechanism != .ambiguous
             && interaction.presentation.mechanism != .manual
-            && interaction.kind != .unknown
+            && interaction.kind != .unknown)
         approvalOnceAvailable = interaction.kind == .approval
-            && interaction.presentation.mechanism == .explicitShortcut
-            && interaction.choices.first?.shortcutKeys == ["y"]
+            && (isNative || (interaction.presentation.mechanism == .explicitShortcut
+                && interaction.choices.first?.shortcutKeys == ["y"]))
         approvalPersistChoiceIndex = interaction.kind == .approval
-            && interaction.presentation.mechanism == .explicitShortcut
-            ? interaction.choices.indices.first {
-                interaction.choices[$0].shortcutKeys == ["p"]
-            } : nil
+            ? (isNative
+                ? interaction.choices.indices.dropFirst().dropLast().first
+                : interaction.presentation.mechanism == .explicitShortcut
+                    ? interaction.choices.indices.first {
+                        interaction.choices[$0].shortcutKeys == ["p"]
+                    } : nil)
+            : nil
         if interaction.presentation.mechanism == .ambiguous {
             supportMessage = "Response mechanism is ambiguous — use manual controls."
         } else if interaction.kind == .unknown {
@@ -102,6 +108,7 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     public let paneID: String
     public let taskTitle: String
     public let agentName: String
+    public let modelName: String?
     public let workspaceLabel: String
     public let status: RollupStatus
     public let stateText: String
@@ -111,16 +118,17 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     public var id: String { paneID }
     public var title: String { taskTitle }
     public var accessibilityLabel: String {
-        "\(title), \(agentName), \(workspaceLabel), pane \(paneID), \(stateText), \(summary)"
+        "\(title), \(agentName)\(modelName.map { ", \($0)" } ?? ""), \(workspaceLabel), pane \(paneID), \(stateText), \(summary)"
     }
 
     public init(paneID: String, taskTitle: String, agentName: String,
-                workspaceLabel: String, status: RollupStatus,
+                modelName: String? = nil, workspaceLabel: String, status: RollupStatus,
                 state: PaneInteractionState?, completionSummary: String? = nil,
                 isSelected: Bool) {
         self.paneID = paneID
         self.taskTitle = taskTitle
         self.agentName = agentName
+        self.modelName = modelName
         self.workspaceLabel = workspaceLabel
         self.status = status
         self.isSelected = isSelected
@@ -181,6 +189,10 @@ public enum PaneDisplayIdentity {
         }
         if let workspaceLabel = nonEmpty(workspaceLabel) { return workspaceLabel }
         return nonEmpty(pane.displayAgent) ?? nonEmpty(pane.agent) ?? pane.paneID
+    }
+
+    public static func modelBadge(pane: PaneInfo) -> String? {
+        nonEmpty(pane.tokens?[OpenCodePaneDescriptor.modelToken])
     }
 
     private static func nonEmpty(_ value: String?) -> String? {

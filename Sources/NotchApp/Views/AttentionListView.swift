@@ -47,6 +47,13 @@ struct AttentionListView: View {
                         .foregroundStyle(.cyan.opacity(0.9))
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(Capsule().fill(.cyan.opacity(0.12)))
+                    if let modelName = item.modelName {
+                        Text(modelName)
+                            .font(.system(size: 7, weight: .bold, design: .rounded))
+                            .foregroundStyle(.purple.opacity(0.95)).lineLimit(1)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(Capsule().fill(.purple.opacity(0.14)))
+                    }
                 }
                 HStack {
                     Text(item.summary).font(.system(size: 9)).foregroundStyle(.white.opacity(0.55))

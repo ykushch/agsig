@@ -52,6 +52,7 @@ final class NotchViewModel {
                 taskTitle: PaneDisplayIdentity.taskTitle(
                     pane: pane, workspaceLabel: workspaceLabel),
                 agentName: pane.displayAgent ?? pane.agent ?? "agent",
+                modelName: PaneDisplayIdentity.modelBadge(pane: pane),
                 workspaceLabel: workspace,
                 status: store.derivedStatus(forPane: pane.paneID),
                 state: interactions.state(for: pane.paneID),
@@ -152,6 +153,7 @@ final class NotchViewModel {
     @ObservationIgnored private var client: HerdrClient
     @ObservationIgnored private var actions: Actions
     @ObservationIgnored private var completionProvider: ScreenCompletionSummaryProvider
+    @ObservationIgnored private var nativeRegistry: OpenCodePaneRegistry
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     var isActing: Bool { interactions.selectedState?.phase.isBusy == true }
@@ -159,12 +161,24 @@ final class NotchViewModel {
     init(client: HerdrClient = HerdrClient()) {
         self.client = client
         let actions = Actions(client: client)
-        let provider = ScreenInteractionProvider(client: client)
+        let screenProvider = ScreenInteractionProvider(client: client)
+        let registry = OpenCodePaneRegistry()
+        let nativeClient = OpenCodeHTTPClient()
+        let nativeProvider = OpenCodeNativeInteractionProvider(
+            registry: registry, client: nativeClient)
+        let provider = RoutedInteractionProvider(
+            registry: registry, native: nativeProvider, fallback: screenProvider)
         self.actions = actions
+        self.nativeRegistry = registry
         self.completionProvider = ScreenCompletionSummaryProvider(client: client)
         self.interactions = InteractionCoordinator(
             reader: provider,
-            responder: InteractionResponder(provider: provider, actions: actions))
+            responder: RoutedInteractionResponder(
+                registry: registry,
+                native: OpenCodeNativeInteractionResponder(
+                    registry: registry, client: nativeClient),
+                fallback: InteractionResponder(
+                    provider: screenProvider, actions: actions)))
     }
 
     /// Re-point the client at a new socket (session switch, spec 10c) and restart
@@ -173,11 +187,23 @@ final class NotchViewModel {
         stop()
         client = HerdrClient(socketPath: socketPath)
         actions = Actions(client: client)
-        let provider = ScreenInteractionProvider(client: client)
+        let screenProvider = ScreenInteractionProvider(client: client)
+        let registry = OpenCodePaneRegistry()
+        let nativeClient = OpenCodeHTTPClient()
+        let nativeProvider = OpenCodeNativeInteractionProvider(
+            registry: registry, client: nativeClient)
+        let provider = RoutedInteractionProvider(
+            registry: registry, native: nativeProvider, fallback: screenProvider)
+        nativeRegistry = registry
         completionProvider = ScreenCompletionSummaryProvider(client: client)
         interactions = InteractionCoordinator(
             reader: provider,
-            responder: InteractionResponder(provider: provider, actions: actions))
+            responder: RoutedInteractionResponder(
+                registry: registry,
+                native: OpenCodeNativeInteractionResponder(
+                    registry: registry, client: nativeClient),
+                fallback: InteractionResponder(
+                    provider: screenProvider, actions: actions)))
         connection = .connecting
         globalError = nil
         start()
@@ -348,8 +374,10 @@ final class NotchViewModel {
         countsTowardFallbackCadence: Bool = true
     ) async
         -> InteractionReconcileResult {
-        await interactions.reconcile(
-            panes: store.panes.values.map { pane in
+        let paneValues = Array(store.panes.values)
+        await nativeRegistry.replace(panes: paneValues)
+        return await interactions.reconcile(
+            panes: paneValues.map { pane in
                 InteractionPaneSnapshot(
                     paneID: pane.paneID, agentID: pane.agent,
                     revision: pane.revision,

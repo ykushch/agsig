@@ -136,7 +136,7 @@ struct PlaceholderNotchView: View {
             Circle().fill(statusColor(model.selectedStatus ?? .unknown)).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item?.title ?? paneID).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                Text([item?.agentName, item?.workspaceLabel].compactMap { $0 }
+                Text([item?.agentName, item?.modelName, item?.workspaceLabel].compactMap { $0 }
                     .joined(separator: " · "))
                     .font(.system(size: 8, weight: .medium)).foregroundStyle(.white.opacity(0.45))
             }
