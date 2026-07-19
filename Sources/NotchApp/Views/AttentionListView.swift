@@ -5,6 +5,7 @@ struct AttentionListView: View {
     let items: [InteractionAttentionDisplayModel]
     let select: (String) -> Void
     let jump: (String) -> Void
+    @State private var hoveredPaneID: String?
 
     var body: some View {
         LazyVStack(spacing: 6) {
@@ -21,7 +22,15 @@ struct AttentionListView: View {
                 }
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 9).fill(
-                    item.isSelected ? .white.opacity(0.14) : .white.opacity(0.055)))
+                    item.isSelected ? .white.opacity(0.14)
+                        : hoveredPaneID == item.paneID
+                            ? .white.opacity(0.10) : .white.opacity(0.055)))
+                .overlay(RoundedRectangle(cornerRadius: 9).stroke(
+                    hoveredPaneID == item.paneID ? .white.opacity(0.10) : .clear))
+                .onHover { hovering in
+                    hoveredPaneID = hovering ? item.paneID
+                        : hoveredPaneID == item.paneID ? nil : hoveredPaneID
+                }
             }
         }
     }

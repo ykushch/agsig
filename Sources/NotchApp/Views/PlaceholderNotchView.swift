@@ -4,6 +4,8 @@ import SwiftUI
 struct PlaceholderNotchView: View {
     @Bindable var model: NotchViewModel
     let notchWidth: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pillHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,7 +13,9 @@ struct PlaceholderNotchView: View {
             if model.isExpanded { expandedCard }
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        .animation(.spring(response: 0.28, dampingFraction: 0.85), value: model.isExpanded)
+        .animation(reduceMotion ? nil
+            : .spring(response: 0.28, dampingFraction: 0.85),
+            value: model.isExpanded)
         .onExitCommand { model.collapse() }
     }
 
@@ -35,7 +39,11 @@ struct PlaceholderNotchView: View {
             }
         }
         .padding(.horizontal, 12).frame(height: 24).frame(minWidth: notchWidth)
-        .background(Capsule().fill(.black.opacity(0.85))).contentShape(Capsule())
+        .background(Capsule().fill(.black.opacity(pillHovered ? 0.94 : 0.85)))
+        .overlay(Capsule().stroke(.white.opacity(pillHovered ? 0.18 : 0.08)))
+        .scaleEffect(pillHovered && !reduceMotion ? 1.015 : 1)
+        .contentShape(Capsule())
+        .onHover { pillHovered = $0 }
         .onTapGesture { model.toggle() }.help("herdr agents — click to expand")
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(model.agentCount) agents, \(model.attentionCount) need input")
@@ -65,9 +73,16 @@ struct PlaceholderNotchView: View {
                 }.padding(.horizontal, 14).padding(.bottom, 14)
             }
         }
-        .frame(width: 400, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.94)))
-        .padding(.top, 6).transition(.opacity.combined(with: .move(edge: .top)))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 16).fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.66))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.12)))
+        .shadow(color: .black.opacity(0.32), radius: 18, y: 8)
+        .padding(.horizontal, 10).padding(.top, 6)
+        .transition(reduceMotion ? .opacity
+            : .opacity.combined(with: .move(edge: .top)))
     }
 
     private var header: some View {

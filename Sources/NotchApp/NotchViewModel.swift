@@ -111,7 +111,7 @@ final class NotchViewModel {
 
     /// Connection state for the robustness UX (spec 10d): drives a "herdr not
     /// running" empty state vs. a live view.
-    enum Connection: Sendable { case connecting, connected, unavailable }
+    enum Connection: Sendable, Equatable { case connecting, connected, unavailable }
     var connection: Connection = .connecting
 
     /// Optional sound engine + settings (injected by the app). The store is the
@@ -135,6 +135,9 @@ final class NotchViewModel {
     var agentCount: Int { store.panes.values.filter { $0.agent != nil }.count }
 
     var hasAttention: Bool { attentionCount > 0 || overallStatus == .blocked }
+    var hasWorkingPanes: Bool {
+        store.panes.keys.contains { store.derivedStatus(forPane: $0) == .working }
+    }
 
     /// Project/session title for the selected blocked pane, otherwise the most
     /// urgent blocked pane. Nil preserves the compact count-only idle pill.
@@ -198,7 +201,12 @@ final class NotchViewModel {
         pollTask = Task { @MainActor in
             while !Task.isCancelled {
                 await self.pollOnce()
-                try? await Task.sleep(nanoseconds: 1_500_000_000)  // 1.5s
+                let cadence = SnapshotPollingPolicy.nanoseconds(
+                    isExpanded: self.isExpanded,
+                    hasBlockedPanes: self.attentionCount > 0,
+                    hasWorkingPanes: self.hasWorkingPanes,
+                    isUnavailable: self.connection == .unavailable)
+                try? await Task.sleep(nanoseconds: cadence)
             }
         }
         eventTask = Task { @MainActor in

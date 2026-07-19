@@ -9,7 +9,6 @@ final class NotchWindowController {
     private let hostingView: NSHostingView<PlaceholderNotchView>
 
     private let fallbackNotchWidth: CGFloat = 190
-    private let expandedWidth: CGFloat = 420
     private let collapsedHeight: CGFloat = 30
 
     init(viewModel: NotchViewModel) {
@@ -36,6 +35,7 @@ final class NotchWindowController {
         withObservationTracking {
             _ = viewModel.presentation
             _ = viewModel.selectedPaneID
+            _ = viewModel.agentCount
         } onChange: { [weak self] in
             Task { @MainActor in self?.applyPresentation(); self?.observePresentation() }
         }
@@ -44,13 +44,16 @@ final class NotchWindowController {
     private func applyPresentation() {
         let screen = Self.notchScreen()
         let notchWidth = Self.notchWidth(on: screen) ?? fallbackNotchWidth
-        let width = viewModel.isExpanded ? expandedWidth : notchWidth
-        let height = viewModel.isExpanded
-            ? min(680, max(480, screen.visibleFrame.height * 0.72))
-            : collapsedHeight
+        let width = viewModel.isExpanded ? Self.expandedWidth(on: screen) : notchWidth
+        let height = viewModel.isExpanded ? Self.expandedHeight(
+            on: screen, agentCount: viewModel.agentCount,
+            hasSelectedDetail: viewModel.selectedPaneID != nil) : collapsedHeight
         hostingView.rootView = PlaceholderNotchView(model: viewModel, notchWidth: notchWidth)
         panel.isInteractive = viewModel.isExpanded
-        panel.setFrame(Self.frame(on: screen, width: width, height: height), display: true, animate: true)
+        panel.setFrame(
+            Self.frame(on: screen, width: width, height: height),
+            display: true,
+            animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         panel.orderFrontRegardless()
     }
 
@@ -65,6 +68,19 @@ final class NotchWindowController {
         let right = frame.maxX - safe.maxX
         let value = frame.width - left - right
         return value > 80 && value < 400 ? value : nil
+    }
+
+    private static func expandedWidth(on screen: NSScreen) -> CGFloat {
+        min(520, max(380, screen.visibleFrame.width * 0.38))
+    }
+
+    private static func expandedHeight(
+        on screen: NSScreen, agentCount: Int, hasSelectedDetail: Bool
+    ) -> CGFloat {
+        let rows = CGFloat(min(max(agentCount, 1), 6)) * 58
+        let detail: CGFloat = hasSelectedDetail ? 290 : 110
+        let estimate = 110 + rows + detail
+        return min(max(360, estimate), screen.visibleFrame.height * 0.74)
     }
 
     private static func frame(on screen: NSScreen, width: CGFloat, height: CGFloat) -> NSRect {
