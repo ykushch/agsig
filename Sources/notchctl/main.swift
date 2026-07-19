@@ -17,6 +17,8 @@ enum CLI {
         do {
             switch command {
             case "resolve": guard args.count > 2 else { throw CLIError.usage("resolve requires a pane id and approve|deny|option number") }; try await resolve(client, pane: args[1], choice: args[2])
+            case "dry-run": guard args.count > 2 else { throw CLIError.usage("dry-run requires a pane id and intent") }; try await dryRun(client, pane: args[1], args: Array(args.dropFirst(2)))
+            case "inspect": guard args.count > 1 else { throw CLIError.usage("inspect requires a fixture directory or detection file") }; try inspect(path: args[1], args: Array(args.dropFirst(2)))
             case "list": try await list(client)
             case "read": guard args.count > 1 else { throw CLIError.usage("read requires a pane id") }; try await read(client, pane: args[1])
             case "capture": guard args.count > 1 else { throw CLIError.usage("capture requires a pane id and --output DIR") }; try await capture(client, pane: args[1], args: args)
@@ -39,8 +41,37 @@ enum CLI {
     }
 
     static func read(_ client: HerdrClient, pane: String) async throws {
-        let prompt = try await classify(client, pane: pane)
-        if jsonOutput { printPromptJSON(prompt, pane: pane) } else { printPrompt(prompt) }
+        let context = try await classify(client, pane: pane)
+        printDiagnostic(context.interaction)
+    }
+
+    static func inspect(path: String, args: [String]) throws {
+        let url = fileURL(path)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: url.path, isDirectory: &isDirectory) else {
+            throw CLIError.usage("fixture path does not exist: \(url.path)")
+        }
+        let interaction: PendingInteraction
+        if isDirectory.boolValue {
+            interaction = try InteractionFixtureInspector().inspect(directory: url)
+        } else {
+            guard let agent = optionalOption("--agent", in: args) else {
+                throw CLIError.usage("inspecting a detection file requires --agent ID")
+            }
+            let detection = try String(contentsOf: url, encoding: .utf8)
+            let visiblePath = optionalOption("--visible", in: args)
+            let visible = try visiblePath.map {
+                try String(contentsOf: fileURL($0), encoding: .utf8)
+            }
+            let revision = optionalOption("--revision", in: args).flatMap(UInt64.init)
+            let paneID = optionalOption("--pane", in: args) ?? "fixture"
+            interaction = PromptClassifier().classifyInteraction(
+                paneID: paneID, agent: agent, text: detection,
+                visibleANSIText: visible, paneRevision: revision,
+                currentTabLabel: visible.flatMap(ScreenInteractionProvider.currentTabLabel))
+        }
+        printDiagnostic(interaction)
     }
 
     static func capture(_ client: HerdrClient, pane paneID: String,
@@ -151,6 +182,22 @@ enum CLI {
         report(.sent)
     }
 
+    static func dryRun(_ client: HerdrClient, pane: String, args: [String]) async throws {
+        let parsed = try parseIntent(args)
+        let shown = try await classify(client, pane: pane)
+        let expected = optionalOption("--expected-fingerprint", in: args)
+            .map(InteractionFingerprint.init(rawValue:))
+            ?? shown.interaction.fingerprint
+        let provider = ScreenInteractionProvider(client: client)
+        let result = try await InteractionDryRunner(provider: provider).run(
+            InteractionDryRunRequest(
+                paneID: pane, agentID: shown.agentID,
+                paneRevision: shown.revision,
+                expectedFingerprint: expected, intent: parsed.intent))
+        printDryRun(result, intentName: parsed.name,
+                    initial: shown.interaction)
+    }
+
     static func watch(_ client: HerdrClient) async throws {
         let store = StateStore()
         let result = try await client.request("session.snapshot")
@@ -165,26 +212,99 @@ enum CLI {
         }
     }
 
-    static func printPrompt(_ context: InteractionContext) {
-        let interaction = context.interaction
-        if let title = interaction.title { print(title) }
-        else if let body = interaction.body { print(body) }
-        for (index, option) in interaction.choices.enumerated() {
-            print("  \(index + 1). \(option.label)")
-        }
+    static func printDiagnostic(_ interaction: PendingInteraction) {
+        let diagnostics = InteractionDiagnosticBuilder()
+        if jsonOutput { printJSON(diagnostics.jsonValue(for: interaction)) }
+        else { print(diagnostics.text(for: interaction)) }
     }
-    static func printPromptJSON(_ context: InteractionContext, pane: String) {
-        let interaction = context.interaction
-        printJSON(.object([
-            "pane_id": .string(pane),
-            "kind": .string(interaction.kind.rawValue),
-            "title": interaction.title.map(JSONValue.string) ?? .null,
-            "body": interaction.body.map(JSONValue.string) ?? .null,
-            "provider": .string(interaction.evidence.providerID),
-            "options": .array(interaction.choices.map {
-                .object(["label": .string($0.label), "kind": .string($0.kind.rawValue)])
-            }),
-        ]))
+
+    static func printDryRun(_ result: InteractionDryRunResult,
+                            intentName: String,
+                            initial: PendingInteraction) {
+        if jsonOutput {
+            printJSON(.object([
+                "schema_version": .number(1),
+                "dry_run": .bool(true),
+                "intent": .string(intentName),
+                "status": .string(result.status.rawValue),
+                "identity_matched": .bool(result.identityMatched),
+                "initial_fingerprint": .string(initial.fingerprint.rawValue),
+                "initial_revision": initial.evidence.paneRevision
+                    .map { .number(Double($0)) } ?? .null,
+                "expected_fingerprint": .string(result.expectedFingerprint.rawValue),
+                "fresh_fingerprint": .string(result.freshInteraction.fingerprint.rawValue),
+                "fresh_revision": result.freshInteraction.evidence.paneRevision
+                    .map { .number(Double($0)) } ?? .null,
+                "plan": result.plan.map(InteractionDiagnosticBuilder.planJSON) ?? .null,
+                "refusal": result.refusal.map(JSONValue.string) ?? .null,
+                "fresh_interaction": InteractionDiagnosticBuilder()
+                    .jsonValue(for: result.freshInteraction),
+            ]))
+            return
+        }
+        print("DRY RUN — no input was sent")
+        print("intent: \(intentName)")
+        print("status: \(result.status.rawValue)")
+        print("initial fingerprint: \(initial.fingerprint.rawValue)")
+        print("initial revision: \(initial.evidence.paneRevision.map(String.init) ?? "—")")
+        print("expected fingerprint: \(result.expectedFingerprint.rawValue)")
+        print("fresh fingerprint: \(result.freshInteraction.fingerprint.rawValue)")
+        print("identity matched: \(result.identityMatched)")
+        if let plan = result.plan {
+            print("plan: \(InteractionDiagnosticBuilder.describe(plan))")
+        }
+        if let refusal = result.refusal { print("refusal: \(refusal)") }
+    }
+
+    struct ParsedIntent {
+        let name: String
+        let intent: InteractionResponseIntent
+    }
+
+    static func parseIntent(_ args: [String]) throws -> ParsedIntent {
+        guard let name = args.first else {
+            throw CLIError.usage("missing dry-run intent")
+        }
+        func number(_ offset: Int = 1) throws -> Int {
+            guard args.indices.contains(offset), let value = Int(args[offset]), value > 0 else {
+                throw CLIError.usage("\(name) requires a 1-based number")
+            }
+            return value - 1
+        }
+        func text(after offset: Int) throws -> String {
+            var values = Array(args.dropFirst(offset))
+            if let option = values.firstIndex(of: "--expected-fingerprint") {
+                let upper = min(option + 2, values.count)
+                values.removeSubrange(option..<upper)
+            }
+            let value = values.joined(separator: " ")
+            guard !value.isEmpty else {
+                throw CLIError.usage("\(name) requires text")
+            }
+            return value
+        }
+        let intent: InteractionResponseIntent = switch name {
+        case "option": .selectChoice(try number())
+        case "check": .setChoice(try number(), checked: true)
+        case "uncheck": .setChoice(try number(), checked: false)
+        case "type": .enterText(try text(after: 1))
+        case "text": .submitText(try text(after: 1))
+        case "option-text": .submitChoiceText(
+            try number(), try text(after: 2))
+        case "add-notes": .beginTextEntry
+        case "clear-notes": .clearTextEntry
+        case "previous": .navigatePrevious
+        case "next": .navigateNext
+        case "step": .navigateToStep(try number())
+        case "submit": .submit
+        case "approve": .approve
+        case "deny": .deny
+        case "cancel": .cancel
+        default:
+            throw CLIError.usage(
+                "unknown dry-run intent \(name); use option|check|uncheck|type|text|option-text|add-notes|clear-notes|previous|next|step|submit|approve|deny|cancel")
+        }
+        return ParsedIntent(name: name, intent: intent)
     }
     static func report(_ result: ActionResult) {
         switch result {
@@ -194,11 +314,16 @@ enum CLI {
         }
     }
     static func printJSON(_ value: JSONValue) {
-        if let data = try? JSONEncoder().encode(value), let text = String(data: data, encoding: .utf8) { print(text) }
+        if let data = try? value.serialized(),
+           let text = String(data: data, encoding: .utf8) { print(text) }
     }
     static func pad(_ text: String, _ width: Int) -> String { text.padding(toLength: width, withPad: " ", startingAt: 0) }
     static func timestamp() -> String { ISO8601DateFormatter().string(from: Date()) }
-    static func usage() { print("usage: notchctl [--sock PATH] [--json] <list|watch|read|capture|extract|resolve|reply|jump> …") }
+    static func usage() {
+        print("usage: notchctl [--sock PATH] [--json] <list|watch|read|inspect|dry-run|capture|extract|resolve|reply|jump> …")
+        print("  inspect <fixture-dir|detection-file> [--agent ID --visible FILE --pane ID --revision N]")
+        print("  dry-run <pane> <option N|check N|uncheck N|type TEXT|text TEXT|option-text N TEXT|add-notes|clear-notes|previous|next|step N|submit|approve|deny|cancel> [--expected-fingerprint HEX]")
+    }
 }
 
 enum CLIError: Error, CustomStringConvertible {

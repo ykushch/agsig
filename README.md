@@ -32,6 +32,9 @@ the UI. Thin wrapper: all logic lives in the `HerdrClient` library.
 swift run notchctl list                      # list all agents + rollup status (F1)
 swift run notchctl watch                     # stream status changes; classify blocks (F1/F2/F4)
 swift run notchctl read  <pane>              # show the classified prompt for a pane (F4)
+swift run notchctl --json read <pane>         # normalized evidence + proposed response plans
+swift run notchctl --json inspect <fixture>   # verify and inspect an offline .fixture directory
+swift run notchctl --json dry-run <pane> option 2 # re-read + plan; never send input
 swift run notchctl resolve <pane> <choice>   # choice = approve | deny | <option number> (F3/F4)
 swift run notchctl reply <pane> <text...>    # free-text reply, submits with enter (F4/F9)
 swift run notchctl jump  <pane>              # focus the pane + raise Ghostty (F5)
@@ -52,6 +55,27 @@ $ swift run notchctl list
 `resolve`/`reply` read the pane's current prompt via `pane.read --source detection`,
 classify it, and send **raw keys only** (herdr rejects `prefix+` chords). Unknown
 prompt shapes fall back to a raw view — the tool never fabricates a keystroke.
+
+### Interaction diagnostics
+
+`read --json` reports the normalized provider and screen adapter, stable
+fingerprint, interaction kind/content, choices/steps, presentation state,
+capabilities, confidence, pane revision, and every proposed response plan or
+explicit refusal. Output keys are sorted so identical evidence produces
+byte-identical JSON. Raw terminal bytes are deliberately excluded; use
+`capture` for raw evidence and `inspect` for normalized diagnostics.
+
+`inspect <path>` verifies and parses a content-addressed `.fixture` directory
+without connecting to herdr. A standalone detection file is also supported with
+`--agent ID` and optional `--visible FILE`, `--pane ID`, and `--revision N`.
+
+`dry-run <pane> <intent>` reads the interaction once, immediately re-reads it,
+compares stable fingerprints, and plans from the fresh presentation. Its core
+boundary has no action/transport sender and cannot write input. Supported intents
+are `option N`, `check N`, `uncheck N`, `type TEXT`, `text TEXT`,
+`option-text N TEXT`, `add-notes`, `clear-notes`, `previous`, `next`, `step N`,
+`submit`, `approve`, `deny`, and `cancel`. Pass
+`--expected-fingerprint HEX` to audit a previously observed identity.
 
 ## `NotchApp` — the notch UI
 

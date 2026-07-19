@@ -106,7 +106,9 @@ extension JSONValue {
     /// Serialize to compact UTF-8 bytes (no trailing newline).
     public func serialized() throws -> Data {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
+        // Stable ordering makes CLI diagnostics and captured protocol evidence
+        // byte-for-byte reproducible while remaining valid for the herdr socket.
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(self)
     }
 

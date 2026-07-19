@@ -49,7 +49,7 @@ public struct ScreenInteractionProvider: InteractionProviding, Sendable {
         return read.text
     }
 
-    static func currentTabLabel(in text: String) -> String? {
+    public static func currentTabLabel(in text: String) -> String? {
         let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
         for line in normalized.split(
