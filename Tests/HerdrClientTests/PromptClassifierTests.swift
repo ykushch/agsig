@@ -109,12 +109,13 @@ struct PromptClassifierTests {
         #expect(r.options.isEmpty)
     }
 
-    @Test("unknown agent falls back to default adapter and still classifies Claude-style prompts")
+    @Test("unknown agent uses conservative raw fallback even for a Claude-shaped prompt")
     func unknownAgent() throws {
         let text = Fixtures.string("prompts/bash-permission-detection.txt")
         let r = PromptClassifier().classify(agent: "some-new-agent", text: text)
-        #expect(r.kind == .approval)
-        #expect(!r.options.isEmpty)
+        #expect(r.kind == .freeText)
+        #expect(r.options.isEmpty)
+        #expect(r.denyKeys.isEmpty)
     }
 
     @Test("markdown detection flags fenced/heading content")

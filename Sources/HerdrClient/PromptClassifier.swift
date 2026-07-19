@@ -150,121 +150,33 @@ public struct ClassifiedPrompt: Sendable, Equatable {
     }
 }
 
-/// Per-agent rules for recognizing prompt shapes. Data-driven so adding an agent
-/// is a one-value change (mirrors herdr's own manifest approach).
-public struct AgentAdapter: Sendable {
-    public let agent: String
-    /// Substrings (lowercased) that mark a blocking prompt for this agent.
-    public let blockMarkers: [String]
-    /// Substrings (lowercased) that specifically indicate an approval (vs a question).
-    public let approvalMarkers: [String]
-    /// Substring (lowercased) that indicates a deny/cancel via esc is offered.
-    public let denyMarkers: [String]
-
-    public init(agent: String, blockMarkers: [String], approvalMarkers: [String],
-                denyMarkers: [String]) {
-        self.agent = agent
-        self.blockMarkers = blockMarkers
-        self.approvalMarkers = approvalMarkers
-        self.denyMarkers = denyMarkers
-    }
-}
-
-/// Turns a blocked pane's on-screen text into a `ClassifiedPrompt`.
-///
-/// Pure and testable: input is (agent id, read text); no socket calls. Unknown
-/// shapes fall back to a raw view — we never fabricate a keystroke.
+/// Compatibility facade around the exact-agent screen-adapter registry.
+/// New parsing consumers should use `classifyInteraction`; the legacy
+/// `ClassifiedPrompt` path remains until the M6 UI migration is complete.
 public struct PromptClassifier: Sendable {
-    private let adapters: [String: AgentAdapter]
-    private let defaultAdapter: AgentAdapter
+    public let registry: ScreenAdapterRegistry
 
-    public init(adapters: [AgentAdapter] = PromptClassifier.defaultAdapters) {
-        var table: [String: AgentAdapter] = [:]
-        for a in adapters { table[a.agent] = a }
-        self.adapters = table
-        // Claude's shape is the most general; use it as the fallback matcher.
-        self.defaultAdapter = table["claude"] ?? adapters.first ?? AgentAdapter(
-            agent: "default",
-            blockMarkers: ["do you want to proceed?", "esc to cancel", "enter to select"],
-            approvalMarkers: ["do you want to"],
-            denyMarkers: ["esc to cancel", "(esc)"])
+    public init(registry: ScreenAdapterRegistry = .standard) {
+        self.registry = registry
     }
 
-    /// The seeded adapter table. Claude's markers come from the verified
-    /// `claude.toml` detection rules (see spec 00 fixtures). Codex reuses the
-    /// same numbered-menu shape until a live Codex fixture says otherwise.
-    public static let defaultAdapters: [AgentAdapter] = [
-        AgentAdapter(
-            agent: "claude",
-            blockMarkers: ["do you want to proceed?", "do you want to make this edit",
-                           "esc to cancel", "enter to select",
-                           "tab/arrow keys to navigate", "enter to select ·",
-                           "ready to submit", "you have not answered"],
-            approvalMarkers: ["do you want to"],
-            denyMarkers: ["esc to cancel", "(esc)"]),
-        AgentAdapter(
-            agent: "codex",
-            blockMarkers: ["do you want to proceed?", "allow command", "esc to cancel",
-                           "enter to select"],
-            approvalMarkers: ["do you want to", "allow command"],
-            denyMarkers: ["esc to cancel", "(esc)"]),
-    ]
-
-    /// Classify a prompt. `agent` selects the adapter; nil/unknown uses the default.
-    ///
-    /// `text` should be the clean `detection` read (no ANSI). `currentTabLabel`, if
-    /// provided by the caller from a separate ANSI read, marks which wizard tab is
-    /// focused — kept separate so the flaky full-screen ANSI read never corrupts
-    /// the clean tab-bar parse.
+    /// Temporary legacy view. Codex deliberately remains raw here until M3/M4
+    /// connect normalized presentation to mandatory response revalidation.
     public func classify(agent: String?, text rawText: String, currentTabLabel: String? = nil) -> ClassifiedPrompt {
-        // Normalize CRLF/CR → LF so line-oriented parsing splits on real boundaries.
-        let text = rawText.replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-        let adapter = agent.flatMap { adapters[$0] } ?? defaultAdapter
-        let low = text.lowercased()
+        registry.parse(ScreenAdapterInput(
+            paneID: "legacy", agentID: agent, detectionText: rawText,
+            currentTabLabel: currentTabLabel)).legacyPrompt
+    }
 
-        let isBlocking = adapter.blockMarkers.contains { low.contains($0) }
-        guard isBlocking else {
-            // Not a recognized blocking shape → safe raw fallback, no keys.
-            return ClassifiedPrompt.rawFallback(text)
-        }
-
-        let options = Self.parseNumberedOptions(text)
-        // A blocking shape we can't parse options from still falls back to raw —
-        // never guess keys for an unparsed menu.
-        guard !options.isEmpty else {
-            return ClassifiedPrompt.rawFallback(text)
-        }
-
-        let isApproval = adapter.approvalMarkers.contains { low.contains($0) }
-        let kind: PromptKind = isApproval ? .approval : .question
-        let offersDeny = adapter.denyMarkers.contains { low.contains($0) }
-        let denyKeys = offersDeny ? ["esc"] : []
-
-        // Richer structure for Claude's question/wizard forms.
-        let steps = Self.parseWizardSteps(text, currentLabel: currentTabLabel)
-        let questionTitle = isApproval ? nil : Self.parseQuestionTitle(text)
-
-        // Answer style: AskUserQuestion forms say "Tab/Arrow keys to navigate" and
-        // ignore number keys — you move the › cursor then Enter/Space. Permission
-        // prompts ("1. Yes / 2. No") take the number directly. Detect by the
-        // navigate hint AND presence of a cursor marker.
-        let usesArrowNav = (low.contains("to navigate") || low.contains("↑/↓"))
-            && options.contains { $0.isSelected }
-        let answerStyle: AnswerStyle = usesArrowNav ? .arrowNavigate : .numberedShortcut
-        // Multi-select: options render a checkbox `[ ]` / `[✓]`.
-        let isMultiSelect = options.contains { $0.isChecked != nil }
-
-        return ClassifiedPrompt(
-            kind: kind,
-            options: options,
-            denyKeys: denyKeys,
-            promptText: text,
-            isMarkdown: Self.looksLikeMarkdown(text),
-            questionTitle: questionTitle,
-            steps: steps,
-            answerStyle: answerStyle,
-            isMultiSelect: isMultiSelect)
+    /// Pure normalized extraction through the exact-agent registry.
+    public func classifyInteraction(paneID: String, agent: String?, text: String,
+                                    visibleANSIText: String? = nil,
+                                    paneRevision: UInt64? = nil,
+                                    currentTabLabel: String? = nil) -> PendingInteraction {
+        registry.parse(ScreenAdapterInput(
+            paneID: paneID, agentID: agent, detectionText: text,
+            visibleANSIText: visibleANSIText, paneRevision: paneRevision,
+            currentTabLabel: currentTabLabel)).interaction
     }
 
     /// Parse Claude's multi-question tab bar, e.g.

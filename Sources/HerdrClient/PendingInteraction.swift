@@ -56,6 +56,7 @@ public enum InteractionMechanism: String, Sendable, Equatable {
     case arrowNavigate
     case multiSelect
     case textEntry
+    case ambiguous
     case manual
 }
 
@@ -262,7 +263,9 @@ public struct InteractionDraftStore: Sendable {
 
 public extension PendingInteraction {
     init(paneID: String, classifiedPrompt prompt: ClassifiedPrompt,
-         agentID: String? = nil, paneRevision: Int? = nil) {
+         agentID: String? = nil, paneRevision: Int? = nil,
+         providerID: String = "classified-prompt-compat",
+         confidence: InteractionConfidence? = nil) {
         let kind: InteractionKind = switch prompt.kind {
         case .approval: .approval
         case .question: .question
@@ -307,9 +310,9 @@ public extension PendingInteraction {
                 activeStepIndex: prompt.currentStepIndex,
                 mechanism: mechanism),
             capabilities: capabilities,
-            evidence: InteractionEvidence(source: .screen, providerID: "classified-prompt-compat",
+            evidence: InteractionEvidence(source: .screen, providerID: providerID,
                                           agentID: agentID, paneRevision: paneRevision,
-                                          confidence: prompt.kind == .freeText ? .fallback : .inferred,
+                                          confidence: confidence ?? (prompt.kind == .freeText ? .fallback : .inferred),
                                           capturedText: prompt.promptText))
     }
 

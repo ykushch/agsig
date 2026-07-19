@@ -39,7 +39,11 @@ HerdrClient.events()   → ONE long-lived connection, reconnects with backoff
     ▼
 StateStore (@MainActor @Observable)  → hydrate(snapshot) then apply(event)
     │
-    ├─→ PromptClassifier  (blocked pane text → ClassifiedPrompt)
+    ├─→ ScreenAdapterRegistry  (exact agent ID → PendingInteraction)
+    │     ├─ ClaudeScreenAdapter
+    │     ├─ CodexScreenAdapter
+    │     └─ GenericScreenAdapter (safe raw fallback)
+    ├─→ PromptClassifier  (temporary ClassifiedPrompt compatibility facade)
     └─→ Actions           (approve/deny/answer/reply/jump → send_keys/send_text/focus + Ghostty raise)
     │
 NotchApp UI (NSPanel + SwiftUI)  /  notchctl CLI

@@ -259,17 +259,15 @@ struct PaneCaptureTests {
         #expect(last.annotations.expectedResponsePlans["option_1"]
             == ["up", "up", "up", "enter"])
 
-        let routingProbe = PromptClassifier(adapters: [
-            AgentAdapter(agent: "claude", blockMarkers: ["claude-only"],
-                         approvalMarkers: [], denyMarkers: []),
-            AgentAdapter(agent: "codex", blockMarkers: ["codex-only"],
-                         approvalMarkers: [], denyMarkers: []),
-        ])
-        let routed = routingProbe.classify(
+        #expect(ScreenAdapterRegistry.standard.adapterID(
+            for: first.sourceCapture.agent) == "codex-screen")
+        let routed = PromptClassifier().classifyInteraction(
+            paneID: first.sourceCapture.paneID,
             agent: first.sourceCapture.agent,
-            text: "codex-only\n1. First\n2. Second\n")
+            text: Fixtures.string("interactions/codex-plan-single-select-q1-df1ba0216047.fixture/detection.txt"),
+            paneRevision: first.sourceCapture.paneRevisionBefore)
         #expect(routed.kind == .question)
-        #expect(routed.options.map(\.label) == ["First", "Second"])
+        #expect(routed.choices.map(\.label) == first.annotations.optionLabels)
 
         let question2 = try #require(metadataByName["codex-plan-single-select-q2"])
         let question3 = try #require(metadataByName["codex-plan-single-select-q3"])
