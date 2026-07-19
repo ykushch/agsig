@@ -1,0 +1,24 @@
+[0m[38;5;2m✔ [0mYou [0m[1mapproved[0m codex to always run commands that start with [0m[2mprintf x >> /[0m
+  [0m[2mprivate/tmp/notchagent-approval-proof.QD2TKh/persist-proof[0m
+
+[0m[1m[38;5;2m•[0m [0m[1mRan[0m [0m[38;2;137;180;250msh[0m[38;2;147;153;178m -[0m[38;2;235;160;172mc[0m[38;2;205;214;244m [0m[38;2;166;227;161m'printf x >> /private/tmp/notchagent-approval-proof.QD2TKh/[0m
+[0m[2m  │ [0m[38;2;166;227;161mpersist-proof'[0m
+[0m[2m  └ (no output)[0m
+
+[0m[2m─────────────────────────────────────────────────────────────────────────────[0m
+
+
+[0m[1m[2m[48;2;65;69;76m› [0m[48;2;65;69;76mRun exactly this command and nothing else: sh -c 'printf x >> /private/               [0m
+[0m[48;2;65;69;76m  tmp/notchagent-approval-proof.QD2TKh/persist-proof'                                   [0m
+
+
+[0m[1m[38;5;2m•[0m [0m[1mRan[0m [0m[38;2;137;180;250msh[0m[38;2;147;153;178m -[0m[38;2;235;160;172mc[0m[38;2;205;214;244m [0m[38;2;166;227;161m'printf x >> /private/tmp/notchagent-approval-proof.QD2TKh/[0m
+[0m[2m  │ [0m[38;2;166;227;161mpersist-proof'[0m
+[0m[2m  └ (no output)[0m
+
+[0m[2m─────────────────────────────────────────────────────────────────────────────[0m
+
+[0m[48;2;65;69;76m                                                                                        [0m
+[0m[1m[48;2;65;69;76m›[0m[48;2;65;69;76m [0m[2m[48;2;65;69;76mExplain this codebase[0m[48;2;65;69;76m                                                                 [0m
+[0m[48;2;65;69;76m                                                                                        [0m
+  [0m[38;2;246;226;183mgpt-5.6-sol high[0m[2m · [0m[38;2;171;223;167m/private/tmp/notchagent-approval-proof.QD2TKh[0m

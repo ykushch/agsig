@@ -1,0 +1,14 @@
+[0m[48;2;65;69;76m  [0m[1m[48;2;65;69;76mWould you like to run the following command?[0m[48;2;65;69;76m                                          [0m
+[0m[48;2;65;69;76m                                                                                        [0m
+[0m[48;2;65;69;76m  Environment: [0m[1m[48;2;65;69;76mlocal[0m[48;2;65;69;76m                                                                    [0m
+[0m[48;2;65;69;76m                                                                                        [0m
+[0m[48;2;65;69;76m  Reason: [0m[3m[48;2;65;69;76mAllow creating the requested empty file once-proof in the workspace?[0m[48;2;65;69;76m          [0m
+[0m[48;2;65;69;76m                                                                                        [0m
+[0m[48;2;65;69;76m  $ [0m[38;2;137;180;250m[48;2;65;69;76mtouch[0m[38;2;205;214;244m[48;2;65;69;76m /private/tmp/notchagent-approval-proof.QD2TKh/once-proof[0m[48;2;65;69;76m                      [0m
+[0m[48;2;65;69;76m                                                                                        [0m
+[0m[1m[38;5;6m[48;2;65;69;76m› 1. Yes, proceed (y)[0m[48;2;65;69;76m                                                                   [0m
+[0m[48;2;65;69;76m  2. Yes, and don't ask again for commands that start with `touch /private/tmp/         [0m
+[0m[48;2;65;69;76m     notchagent-approval-proof.QD2TKh/once-proof` ([0m[2m[48;2;65;69;76mp[0m[48;2;65;69;76m)                                   [0m
+[0m[48;2;65;69;76m  3. No, and tell Codex what to do differently ([0m[2m[48;2;65;69;76mesc[0m[48;2;65;69;76m)                                    [0m
+[0m[48;2;65;69;76m                                                                                        [0m
+  [0m[2mPress enter to confirm or esc to cancel                                               [0m

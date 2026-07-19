@@ -19,11 +19,16 @@ public struct InteractionChoice: Sendable, Equatable {
     public let kind: InteractionChoiceKind
     public let label: String
     public let description: String?
+    /// Exact raw key sequence advertised by and verified against the provider.
+    /// Empty means the choice must use the interaction's navigation mechanism.
+    public let shortcutKeys: [String]
 
-    public init(kind: InteractionChoiceKind = .option, label: String, description: String? = nil) {
+    public init(kind: InteractionChoiceKind = .option, label: String,
+                description: String? = nil, shortcutKeys: [String] = []) {
         self.kind = kind
         self.label = label
         self.description = description
+        self.shortcutKeys = shortcutKeys
     }
 }
 
@@ -53,6 +58,7 @@ public struct InteractionProgress: Sendable, Equatable {
 
 public enum InteractionMechanism: String, Sendable, Equatable {
     case numberedShortcut
+    case explicitShortcut
     case arrowNavigate
     case multiSelect
     case textEntry
@@ -168,7 +174,8 @@ public struct PendingInteraction: Sendable, Equatable {
         var fields = [paneID, kind.rawValue, Self.normalize(title), Self.normalize(body)]
         fields += [progress?.current, progress?.total, progress?.unanswered].map { $0.map(String.init) ?? "" }
         for choice in choices {
-            fields += [choice.kind.rawValue, Self.normalize(choice.label), Self.normalize(choice.description)]
+            fields += [choice.kind.rawValue, Self.normalize(choice.label),
+                       Self.normalize(choice.description), choice.shortcutKeys.joined(separator: "\u{1f}")]
         }
         for step in steps {
             fields += [Self.normalize(step.label), step.isAnswered ? "1" : "0", step.isSubmit ? "1" : "0"]

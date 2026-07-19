@@ -1,0 +1,50 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+
+    },
+    "interaction_kind" : "none",
+    "manifest_rule" : "resolved_live_approval_evidence",
+    "name" : "codex-command-approval-y-resolved",
+    "notes" : [
+      "Captured after sending y to the matching live approval fixture.",
+      "Codex reported one-time approval and command execution; filesystem verification found once-proof at zero bytes."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "option_descriptions" : [
+
+    ],
+    "option_labels" : [
+
+    ],
+    "response_mechanism" : "none",
+    "title" : "Approval accepted once"
+  },
+  "artifact_sha256" : "7aa2af898b7dcb7e7a9f414c7c61d3c74effadd582ee9135de0a3ed83b94276d",
+  "fixture_detection_sha256" : "5bebb29c3bbec493a8affaaf60045adf3cb93e7c26491053ddf2d5f6b2792728",
+  "fixture_visible_ansi_sha256" : "f51dbc58516616e19183a1b5c4f0ad1b293170845ff99e73f3d05b81870e9bc6",
+  "region" : {
+    "end_marker" : "no output",
+    "start_marker" : "approved"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "done",
+    "agent_status_before" : "done",
+    "captured_at" : "2026-07-19T16:10:02Z",
+    "detection_byte_count" : 1674,
+    "detection_sha256" : "4107cdabef84a3b0e0b57437f63d475ce332dc4c8ec9cdcb0e91c1ad57267282",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w2:p2",
+    "pane_revision_after" : 30,
+    "pane_revision_before" : 30,
+    "terminal_id" : "term_656f8fd37510c4",
+    "visible_ansi_byte_count" : 2624,
+    "visible_ansi_sha256" : "35738d4367bc80fc876ac9458f50513d76ce9f1f5443ea685b828cc2bc949ffa"
+  }
+}

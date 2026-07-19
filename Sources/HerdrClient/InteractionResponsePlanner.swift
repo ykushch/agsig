@@ -127,7 +127,10 @@ public struct InteractionResponsePlanner: Sendable {
                 throw InteractionPlanningError.ambiguousMechanism
             }
             guard interaction.kind == .reviewSubmit
-                    || interaction.presentation.mechanism == .textEntry else {
+                    || interaction.presentation.mechanism == .textEntry
+                    || (interaction.kind == .approval
+                        && interaction.presentation.mechanism == .explicitShortcut
+                        && interaction.presentation.selectedChoiceIndex != nil) else {
                 throw InteractionPlanningError.unsupportedIntent
             }
             return keys(["enter"])
@@ -135,9 +138,6 @@ public struct InteractionResponsePlanner: Sendable {
             guard interaction.kind == .approval,
                   interaction.capabilities.contains(.approve) else {
                 throw InteractionPlanningError.unsupportedIntent
-            }
-            guard interaction.presentation.mechanism != .ambiguous else {
-                throw InteractionPlanningError.ambiguousMechanism
             }
             return try planChoice(0, for: interaction, toggle: false)
         case .deny:
@@ -163,6 +163,11 @@ public struct InteractionResponsePlanner: Sendable {
         case .numberedShortcut:
             guard !toggle else { throw InteractionPlanningError.unsupportedIntent }
             return keys([String(index + 1), "enter"])
+        case .explicitShortcut:
+            guard !toggle, !interaction.choices[index].shortcutKeys.isEmpty else {
+                throw InteractionPlanningError.ambiguousMechanism
+            }
+            return keys(interaction.choices[index].shortcutKeys)
         case .arrowNavigate, .multiSelect:
             guard let cursor = interaction.presentation.selectedChoiceIndex else {
                 throw InteractionPlanningError.missingCursor
@@ -198,6 +203,11 @@ public struct InteractionResponsePlanner: Sendable {
         switch interaction.presentation.mechanism {
         case .numberedShortcut:
             return [String(index + 1)]
+        case .explicitShortcut:
+            guard !interaction.choices[index].shortcutKeys.isEmpty else {
+                throw InteractionPlanningError.ambiguousMechanism
+            }
+            return interaction.choices[index].shortcutKeys
         case .arrowNavigate:
             guard let cursor = interaction.presentation.selectedChoiceIndex else {
                 throw InteractionPlanningError.missingCursor

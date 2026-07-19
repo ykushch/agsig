@@ -220,7 +220,7 @@ struct PaneCaptureTests {
         let directories = try FileManager.default.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "fixture" }
-        #expect(directories.count == 12)
+        #expect(directories.count == 14)
 
         let extractor = PaneFixtureExtractor()
         var metadataByName: [String: PaneFixtureMetadata] = [:]
@@ -230,7 +230,10 @@ struct PaneCaptureTests {
             #expect(metadata.sourceCapture.agent == "codex")
             #expect(metadata.sourceCapture.herdrVersion == "0.7.4")
             #expect(metadata.sourceCapture.herdrProtocol == 16)
-            #expect(metadata.annotations.manifestRule == "osc_title_blocked + live_strong_blocker")
+            #expect(metadata.annotations.manifestRule.map {
+                ["osc_title_blocked + live_strong_blocker",
+                 "resolved_live_approval_evidence"].contains($0)
+            } == true)
             let detection = try String(
                 contentsOf: directory.appendingPathComponent("detection.txt"),
                 encoding: .utf8)
@@ -285,15 +288,39 @@ struct PaneCaptureTests {
         #expect(resolved.sourceCapture.paneRevisionBefore
             != question3.sourceCapture.paneRevisionBefore)
 
-        let approval = try #require(metadataByName["codex-command-approval"])
-        #expect(approval.sanitization == .explicitReplacement)
+        let approval = try #require(
+            metadataByName["codex-command-approval-explicit-shortcuts"])
+        #expect(approval.sanitization == .none)
+        #expect(approval.annotations.responseMechanism == "explicit_shortcut")
+        #expect(approval.annotations.expectedResponsePlans["approve_once"] == ["y"])
+        #expect(approval.annotations.expectedResponsePlans["approve_persist"] == ["p"])
         #expect(approval.annotations.expectedResponsePlans["deny"] == ["esc"])
         let approvalDirectory = try #require(directories.first {
-            $0.lastPathComponent.contains("codex-command-approval-")
-                && !$0.lastPathComponent.contains("denied")
+            $0.lastPathComponent.contains("codex-command-approval-explicit-shortcuts-")
         })
         #expect(!String(data: try Data(contentsOf: approvalDirectory
             .appendingPathComponent("detection.txt")), encoding: .utf8)!.contains("ykushch"))
+
+        let once = try #require(metadataByName["codex-command-approval-y-resolved"])
+        #expect(once.sourceCapture.agentStatusBefore == .done)
+        let onceDirectory = try #require(directories.first {
+            $0.lastPathComponent.contains("codex-command-approval-y-resolved-")
+        })
+        let onceText = try String(contentsOf: onceDirectory.appendingPathComponent(
+            "detection.txt"), encoding: .utf8)
+        #expect(onceText.contains("approved codex to run"))
+        #expect(onceText.contains("this time"))
+
+        let persisted = try #require(metadataByName["codex-command-approval-p-resolved"])
+        #expect(persisted.sourceCapture.agentStatusBefore == .done)
+        let persistedDirectory = try #require(directories.first {
+            $0.lastPathComponent.contains("codex-command-approval-p-resolved-")
+        })
+        let persistedText = try String(contentsOf: persistedDirectory.appendingPathComponent(
+            "detection.txt"), encoding: .utf8)
+        #expect(persistedText.contains("approved codex to always run commands that start with"))
+        #expect(persistedText.components(separatedBy: "• Ran sh -c").count - 1 == 2)
+        #expect(!persistedText.contains("Would you like to run the following command?"))
 
         let multiselect = try #require(metadataByName["codex-multiselect-not-exposed"])
         #expect(multiselect.annotations.observedCheckedIndexes.isEmpty)

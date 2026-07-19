@@ -1,0 +1,49 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+
+    },
+    "interaction_kind" : "none",
+    "manifest_rule" : "resolved_live_approval_evidence",
+    "name" : "codex-command-approval-p-resolved",
+    "notes" : [
+      "Captured after sending p to the matching live approval fixture and repeating the identical command.",
+      "Codex reported persistent prefix approval; the first command produced one byte and the unprompted repeat produced a second byte."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "option_descriptions" : [
+
+    ],
+    "option_labels" : [
+
+    ],
+    "response_mechanism" : "none",
+    "title" : "Prefix approval persisted"
+  },
+  "artifact_sha256" : "c5d371998aae3df6d54c2b5d72835b084c8a766544b0c738033db30d4bff08ec",
+  "fixture_detection_sha256" : "32c0cac1e572b29088203c0525e8043ce8abbc21c96502c956f26dfd49aaab35",
+  "fixture_visible_ansi_sha256" : "ca1f9c235e59001409a803e679a2afbf5a652d131a55bf1dfd332b6b5b7e1254",
+  "region" : {
+    "start_marker" : "approved"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "done",
+    "agent_status_before" : "done",
+    "captured_at" : "2026-07-19T16:12:56Z",
+    "detection_byte_count" : 1874,
+    "detection_sha256" : "4225c0170d31b34aa7ad5a9b3aa9cb3fe30507dd7daaf8c3412bfcaf0f835577",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w2:p2",
+    "pane_revision_after" : 60,
+    "pane_revision_before" : 60,
+    "terminal_id" : "term_656f8fd37510c4",
+    "visible_ansi_byte_count" : 3420,
+    "visible_ansi_sha256" : "8863b4827ad110d1df8ee9461d5995e4e563eea9bd88928fbffb7799d9df0247"
+  }
+}

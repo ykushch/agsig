@@ -52,6 +52,11 @@ struct PendingInteractionIdentityTests {
             InteractionChoice(label: "Production", description: "Deploy after review"),
             InteractionChoice(label: "Staging", description: "Deploy privately"),
         ]).fingerprint != baseline)
+        #expect(interaction(choices: [
+            InteractionChoice(label: "Production", description: "Deploy publicly",
+                              shortcutKeys: ["p"]),
+            InteractionChoice(label: "Staging", description: "Deploy privately"),
+        ]).fingerprint != baseline)
     }
 
     @Test("fingerprinting is deterministic")

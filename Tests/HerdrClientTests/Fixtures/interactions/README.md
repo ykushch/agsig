@@ -49,5 +49,9 @@ verifies the complete committed corpus.
 - A direct request for a multi-select checkbox question still rendered the
   single-select cursor mechanism. No checkbox semantics are inferred for this
   observed Codex build.
-- The synthetic approval was denied with `esc`; the requested file was verified
-  absent afterward.
+- The original synthetic approval was denied with `esc`; the requested file was
+  verified absent afterward.
+- Codex CLI 0.144.5 approval shortcuts were exercised in an isolated temporary
+  workspace: `y` ran the command once, while `p` persisted the displayed exact
+  prefix and allowed the identical command to run a second time without another
+  blocked prompt. The committed resolved fixtures retain both terminal outcomes.

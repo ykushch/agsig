@@ -265,8 +265,16 @@ public struct CodexScreenAdapter: ScreenAdapter {
 
     private func parseApproval(_ input: ScreenAdapterInput, text: String) -> PendingInteraction? {
         let lines = text.components(separatedBy: "\n")
-        let raw = Self.parseOptions(lines)
+        guard let titleIndex = lines.lastIndex(where: {
+            Self.trimmed($0).lowercased() == Markers.approvalTitle.lowercased()
+        }), let footerIndex = lines.indices.first(where: {
+            $0 > titleIndex && $0 < lines.endIndex
+                && lines[$0].lowercased().contains(Markers.approvalFooter)
+        }) else { return nil }
+        let approvalLines = Array(lines[titleIndex...footerIndex])
+        let raw = Self.parseApprovalOptions(approvalLines)
         guard raw.count == 3 else { return nil }
+        let verifiedShortcuts = raw.map(\.shortcutKey) == ["y", "p", "esc"]
         let choices = raw.enumerated().map { index, option in
             let label: String
             let description: String
@@ -277,23 +285,29 @@ public struct CodexScreenAdapter: ScreenAdapter {
             case 1:
                 label = option.label.components(separatedBy: " for commands that start with").first
                     .map(Self.removingShortcut) ?? option.label
-                description = "Persist approval for the exact command prefix."
+                description = Self.commandPrefix(in: option.label).map {
+                    "Persist approval for commands starting with `\($0)`."
+                } ?? "Persist approval for the exact command prefix."
             default:
                 label = Self.removingShortcut(option.label)
                 description = "Deny and return feedback to Codex."
             }
-            return InteractionChoice(label: label, description: description)
+            return InteractionChoice(
+                label: label, description: description,
+                shortcutKeys: verifiedShortcuts ? option.shortcutKey.map { [$0] } ?? [] : [])
         }
-        let body = lines.map(Self.trimmed).filter { line in
-            !line.isEmpty && line.lowercased() != Markers.approvalTitle.lowercased()
-                && !Self.isOptionLine(line) && !line.lowercased().contains(Markers.approvalFooter)
-        }.joined(separator: "\n")
+        guard let firstOptionIndex = approvalLines.indices.first(where: {
+            $0 > approvalLines.startIndex && Self.isOptionLine(approvalLines[$0])
+        }) else { return nil }
+        let body = approvalLines[(approvalLines.startIndex + 1)..<firstOptionIndex]
+            .map(Self.trimmed).filter { !$0.isEmpty }.joined(separator: "\n")
         return PendingInteraction(
             paneID: input.paneID, kind: .approval,
             title: Markers.approvalTitle, body: body,
             choices: choices,
             presentation: InteractionPresentation(
-                selectedChoiceIndex: raw.firstIndex(where: \.selected), mechanism: .ambiguous),
+                selectedChoiceIndex: raw.firstIndex(where: \.selected),
+                mechanism: verifiedShortcuts ? .explicitShortcut : .ambiguous),
             capabilities: [.approve, .deny, .selectOne],
             evidence: Self.evidence(input, adapterID: adapterID, text: text))
     }
@@ -302,6 +316,7 @@ public struct CodexScreenAdapter: ScreenAdapter {
         let label: String
         let description: String?
         let selected: Bool
+        let shortcutKey: String?
     }
 
     private static func parseOptions(_ lines: [String]) -> [ParsedOption] {
@@ -321,8 +336,71 @@ public struct CodexScreenAdapter: ScreenAdapter {
             let description = separator.map { trimmed(String(remainder[$0.upperBound...])) }
             return ParsedOption(label: label,
                                 description: description?.isEmpty == false ? description : nil,
-                                selected: selected)
+                                selected: selected, shortcutKey: nil)
         }
+    }
+
+    /// Approval options can wrap in the middle of a backticked command prefix.
+    /// Reassemble each numbered block before trusting its advertised shortcut.
+    private static func parseApprovalOptions(_ lines: [String]) -> [ParsedOption] {
+        struct Start {
+            let lineIndex: Int
+            let number: Int
+            let selected: Bool
+            let remainder: String
+        }
+        var starts: [Start] = []
+        for (lineIndex, line) in lines.enumerated() {
+            var value = trimmed(line)
+            var selected = false
+            for marker in ["❯", "›", ">"] where value.hasPrefix(marker) {
+                selected = true
+                value = trimmed(String(value.dropFirst()))
+            }
+            guard let dot = value.firstIndex(of: "."),
+                  let number = Int(value[..<dot]), number > 0 else { continue }
+            let remainder = trimmed(String(value[value.index(after: dot)...]))
+            guard !remainder.isEmpty else { continue }
+            starts.append(Start(lineIndex: lineIndex, number: number,
+                                selected: selected, remainder: remainder))
+        }
+        guard starts.map(\.number) == [1, 2, 3] else { return [] }
+
+        return starts.enumerated().map { offset, start in
+            let nextStart = starts.indices.contains(offset + 1)
+                ? starts[offset + 1].lineIndex : lines.count
+            let footer = lines.indices.first {
+                $0 > start.lineIndex && $0 < nextStart
+                    && lines[$0].lowercased().contains(Markers.approvalFooter)
+            } ?? nextStart
+            var label = start.remainder
+            for continuation in lines[(start.lineIndex + 1)..<footer].map(trimmed)
+                where !continuation.isEmpty {
+                let insideBackticks = label.filter { $0 == "`" }.count.isMultiple(of: 2) == false
+                label += (insideBackticks ? "" : " ") + continuation
+            }
+            return ParsedOption(
+                label: label, description: nil, selected: start.selected,
+                shortcutKey: trailingShortcut(in: label))
+        }
+    }
+
+    private static func trailingShortcut(in value: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\((y|p|esc)\)\s*$"#, options: .caseInsensitive),
+              let match = regex.firstMatch(
+                in: value, range: NSRange(value.startIndex..., in: value)),
+              let range = Range(match.range(at: 1), in: value) else { return nil }
+        return value[range].lowercased()
+    }
+
+    private static func commandPrefix(in value: String) -> String? {
+        guard let start = value.firstIndex(of: "`"),
+              let end = value[value.index(after: start)...].firstIndex(of: "`") else {
+            return nil
+        }
+        let prefix = String(value[value.index(after: start)..<end])
+        return prefix.isEmpty ? nil : prefix
     }
 
     private static func parseQuestionProgress(_ line: String) -> InteractionProgress? {

@@ -122,6 +122,7 @@ public struct InteractionDiagnosticBuilder: Sendable {
                     "kind": .string(choice.kind.rawValue),
                     "label": .string(choice.label),
                     "description": optional(choice.description),
+                    "shortcut_keys": .array(choice.shortcutKeys.map(JSONValue.string)),
                 ])
             }),
             "steps": .array(interaction.steps.enumerated().map { index, step in
@@ -170,6 +171,9 @@ public struct InteractionDiagnosticBuilder: Sendable {
             var suffix: [String] = []
             if interaction.presentation.selectedChoiceIndex == index { suffix.append("selected") }
             if interaction.presentation.checkedChoiceIndexes.contains(index) { suffix.append("checked") }
+            if !choice.shortcutKeys.isEmpty {
+                suffix.append("shortcut: \(choice.shortcutKeys.joined(separator: "+"))")
+            }
             let state = suffix.isEmpty ? "" : " [\(suffix.joined(separator: ", "))]"
             lines.append("choice \(index + 1): \(choice.label)\(state)")
         }

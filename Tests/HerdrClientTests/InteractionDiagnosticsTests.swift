@@ -50,7 +50,7 @@ struct InteractionDiagnosticsTests {
             at: root, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "fixture" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        #expect(directories.count == 12)
+        #expect(directories.count == 14)
         let inspector = InteractionFixtureInspector()
         let diagnostics = InteractionDiagnosticBuilder()
 
@@ -91,10 +91,10 @@ struct InteractionDiagnosticsTests {
         #expect(fourth?.plan?.flattenedKeys == ["down", "down", "down", "enter"])
 
         let approval = try InteractionFixtureInspector().inspect(directory: Fixtures.url(
-            "interactions/codex-command-approval-3dd8a319ff17.fixture"))
+            "interactions/codex-command-approval-explicit-shortcuts-0e257cdd8f3b.fixture"))
         let approvalPlans = InteractionDiagnosticBuilder().proposals(for: approval)
-        #expect(approvalPlans.first { $0.intent == "approve" }?.refusal
-            == "ambiguous_mechanism")
+        #expect(approvalPlans.first { $0.intent == "approve" }?.plan?.flattenedKeys
+            == ["y"])
         #expect(approvalPlans.first { $0.intent == "deny" }?.plan?.flattenedKeys
             == ["esc"])
     }

@@ -5,15 +5,17 @@ public struct InteractionDisplayChoice: Sendable, Equatable {
     public let kind: InteractionChoiceKind
     public let label: String
     public let description: String?
+    public let shortcutKeys: [String]
     public let isSelected: Bool
     public let isChecked: Bool?
 
     public init(index: Int, kind: InteractionChoiceKind, label: String, description: String?,
-                isSelected: Bool, isChecked: Bool?) {
+                shortcutKeys: [String] = [], isSelected: Bool, isChecked: Bool?) {
         self.index = index
         self.kind = kind
         self.label = label
         self.description = description
+        self.shortcutKeys = shortcutKeys
         self.isSelected = isSelected
         self.isChecked = isChecked
     }
@@ -44,7 +46,7 @@ public struct InteractionDisplayModel: Sendable, Equatable {
             let choice = interaction.choices[index]
             return InteractionDisplayChoice(
                 index: index, kind: choice.kind, label: choice.label,
-                description: choice.description,
+                description: choice.description, shortcutKeys: choice.shortcutKeys,
                 isSelected: interaction.presentation.selectedChoiceIndex == index,
                 isChecked: isMultiSelect ? checked.contains(index) : nil)
         }

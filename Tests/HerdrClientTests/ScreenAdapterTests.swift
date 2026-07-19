@@ -50,7 +50,7 @@ struct CodexScreenAdapterCorpusTests {
             at: root, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "fixture" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        #expect(directories.count == 12)
+        #expect(directories.count == 14)
 
         for directory in directories {
             let metadata = try JSONDecoder().decode(
@@ -108,6 +108,7 @@ struct CodexScreenAdapterCorpusTests {
                 #expect(interaction.kind == .approval)
                 #expect(interaction.capabilities.contains(.approve))
                 #expect(interaction.capabilities.contains(.deny))
+                #expect(interaction.choices.map(\.shortcutKeys) == [["y"], ["p"], ["esc"]])
             }
         }
     }
@@ -131,6 +132,23 @@ struct CodexScreenAdapterCorpusTests {
             == [0, 1, 3])
     }
 
+    @Test("approval parsing is scoped to the latest prompt and requires all verified hints")
+    func approvalShortcutSafety() {
+        let fixture = Fixtures.string(
+            "interactions/codex-command-approval-explicit-shortcuts-0e257cdd8f3b.fixture/detection.txt")
+        let scrollback = "Question 1/1\n1. Earlier option\n\n" + fixture
+        let parsed = PromptClassifier().classifyInteraction(
+            paneID: "w1:p2", agent: "codex", text: scrollback)
+        #expect(parsed.presentation.mechanism == .explicitShortcut)
+        #expect(parsed.choices.map(\.shortcutKeys) == [["y"], ["p"], ["esc"]])
+
+        let changedHint = fixture.replacingOccurrences(of: "(p)", with: "(x)")
+        let refused = PromptClassifier().classifyInteraction(
+            paneID: "w1:p2", agent: "codex", text: changedHint)
+        #expect(refused.presentation.mechanism == .ambiguous)
+        #expect(refused.choices.allSatisfy { $0.shortcutKeys.isEmpty })
+    }
+
     private func expectedKind(_ value: String) -> InteractionKind {
         switch value {
         case "question", "question_text_entry": .question
@@ -144,6 +162,7 @@ struct CodexScreenAdapterCorpusTests {
         switch value {
         case "arrow_navigate": .arrowNavigate
         case "free_text_notes": .textEntry
+        case "explicit_shortcut": .explicitShortcut
         case "numbered_shortcut_or_arrow": .ambiguous
         default: .manual
         }

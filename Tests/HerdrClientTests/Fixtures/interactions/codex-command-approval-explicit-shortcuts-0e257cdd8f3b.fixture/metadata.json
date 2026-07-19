@@ -1,0 +1,67 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "approve_once" : [
+        "y"
+      ],
+      "approve_persist" : [
+        "p"
+      ],
+      "confirm_selected" : [
+        "enter"
+      ],
+      "deny" : [
+        "esc"
+      ]
+    },
+    "interaction_kind" : "security_approval",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-command-approval-explicit-shortcuts",
+    "notes" : [
+      "Captured from Codex CLI 0.144.5 before execution in an isolated temporary herdr workspace.",
+      "The displayed y shortcut was sent live; Codex confirmed one-time approval and the requested zero-byte file existed afterward.",
+      "The displayed p shortcut was sent live for a harmless append prefix; Codex confirmed persistent approval, and repeating the identical command appended a second byte without another blocked prompt."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Run once.",
+      "Persist approval for commands starting with `touch /private/tmp/notchagent-approval-proof.QD2TKh/once-proof`.",
+      "Deny and return feedback to Codex."
+    ],
+    "option_labels" : [
+      "Yes, proceed",
+      "Yes, and don't ask again",
+      "No, and tell Codex what to do differently"
+    ],
+    "response_mechanism" : "explicit_shortcut",
+    "title" : "Would you like to run the following command?"
+  },
+  "artifact_sha256" : "0e257cdd8f3bcf24981914a2ad0c66485d099f3b9694997f5e103a60d05e6257",
+  "fixture_detection_sha256" : "c5de9d1d964febfb68cecc8b06571998a38b59e70aa602327d24e0cdf81b484c",
+  "fixture_visible_ansi_sha256" : "8ab4fa3ddaa66030e1c68f83b43219fcd98749782f46a3f3585193b7bf89825c",
+  "region" : {
+    "end_marker" : "Press enter to confirm or esc to cancel",
+    "start_marker" : "Would you like to run the following command?"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-19T16:09:30Z",
+    "detection_byte_count" : 1697,
+    "detection_sha256" : "1035c928c859a944d0f329db8b88907bae52ff8b92123fcd6afc50707f4f7857",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w2:p2",
+    "pane_revision_after" : 13,
+    "pane_revision_before" : 13,
+    "terminal_id" : "term_656f8fd37510c4",
+    "visible_ansi_byte_count" : 3693,
+    "visible_ansi_sha256" : "8fbd424533d55525910d9925753e7d58bb6069c0c28aa41382ac505d936c11f0"
+  }
+}

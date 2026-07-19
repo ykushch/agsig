@@ -6,7 +6,7 @@ import Testing
 struct InteractionResponsePlannerTests {
     private let planner = InteractionResponsePlanner()
 
-    @Test("captured Codex key plans match fixture metadata or are explicitly refused as ambiguous")
+    @Test("captured Codex key plans match fixture metadata")
     func codexCorpusPlans() throws {
         let root = Fixtures.url("interactions")
         let directories = try FileManager.default.contentsOfDirectory(
@@ -45,8 +45,8 @@ struct InteractionResponsePlannerTests {
                 }
             }
         }
-        #expect(matched == 35)
-        #expect(refusedAmbiguous == 3)
+        #expect(matched == 38)
+        #expect(refusedAmbiguous == 0)
     }
 
     @Test("arrow movement is recomputed from each fresh cursor")
@@ -64,6 +64,25 @@ struct InteractionResponsePlannerTests {
         let interaction = question(mechanism: .numberedShortcut, cursor: nil)
         #expect(try planner.plan(.selectChoice(2), for: interaction).flattenedKeys
             == ["3", "enter"])
+    }
+
+    @Test("verified explicit shortcuts select directly and Enter confirms the cursor")
+    func explicitShortcuts() throws {
+        let interaction = PendingInteraction(
+            paneID: "w1:p2", kind: .approval, title: "Run command?",
+            choices: [
+                InteractionChoice(label: "Allow once", shortcutKeys: ["y"]),
+                InteractionChoice(label: "Allow prefix", shortcutKeys: ["p"]),
+                InteractionChoice(label: "Deny", shortcutKeys: ["esc"]),
+            ],
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: 0, mechanism: .explicitShortcut),
+            capabilities: [.approve, .deny, .selectOne], evidence: evidence)
+
+        #expect(try planner.plan(.approve, for: interaction).flattenedKeys == ["y"])
+        #expect(try planner.plan(.selectChoice(1), for: interaction).flattenedKeys == ["p"])
+        #expect(try planner.plan(.selectChoice(2), for: interaction).flattenedKeys == ["esc"])
+        #expect(try planner.plan(.submit, for: interaction).flattenedKeys == ["enter"])
     }
 
     @Test("checkbox planner uses fresh cursor and checked state")
@@ -212,9 +231,9 @@ struct InteractionDisplayModelTests {
             if metadata.annotations.interactionKind == "question_text_entry" {
                 #expect(display.showsTextEntry)
             }
-            if metadata.annotations.responseMechanism == "numbered_shortcut_or_arrow" {
-                #expect(!display.exposesStructuredSubmit)
-                #expect(display.supportMessage?.contains("ambiguous") == true)
+            if metadata.annotations.responseMechanism == "explicit_shortcut" {
+                #expect(display.exposesStructuredSubmit)
+                #expect(display.choices.map(\.shortcutKeys) == [["y"], ["p"], ["esc"]])
             }
         }
     }
@@ -241,10 +260,10 @@ struct InteractionDisplayModelTests {
         #expect(!notes.showsBeginTextEntry)
 
         let approval = display(
-            "codex-command-approval-3dd8a319ff17.fixture")
+            "codex-command-approval-explicit-shortcuts-0e257cdd8f3b.fixture")
         #expect(!approval.choicesAreActionable)
         #expect(approval.showsCancel)
-        #expect(!approval.exposesStructuredSubmit)
+        #expect(approval.exposesStructuredSubmit)
     }
 
     @Test("attention rows surface prompt, phases, stale drafts, errors, and accessibility")
