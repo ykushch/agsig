@@ -84,6 +84,7 @@ struct PlaceholderNotchView: View {
     }
 
     @ViewBuilder private func selectedDetail(_ paneID: String) -> some View {
+        let item = model.attentionItems.first { $0.paneID == paneID }
         VStack(alignment: .leading, spacing: 9) {
             detailHeader(paneID)
             if let state = model.selectedInteractionState {
@@ -105,7 +106,9 @@ struct PlaceholderNotchView: View {
                     errorBanner(error)
                 }
             } else {
-                Text(idleMessage(model.selectedStatus ?? .unknown))
+                Text(item?.status == .done
+                    ? item?.summary ?? idleMessage(.done)
+                    : idleMessage(model.selectedStatus ?? .unknown))
                     .font(.system(size: 10)).foregroundStyle(.white.opacity(0.6))
             }
             ManualDriveView(model: model)

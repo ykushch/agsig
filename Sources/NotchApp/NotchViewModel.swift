@@ -55,6 +55,7 @@ final class NotchViewModel {
                 workspaceLabel: workspace,
                 status: store.derivedStatus(forPane: pane.paneID),
                 state: interactions.state(for: pane.paneID),
+                completionSummary: interactions.completionSummary(for: pane.paneID),
                 isSelected: pane.paneID == selectedPaneID)
         }.sorted { left, right in
             let leftRank = attentionRank[left.paneID]
@@ -147,6 +148,7 @@ final class NotchViewModel {
 
     @ObservationIgnored private var client: HerdrClient
     @ObservationIgnored private var actions: Actions
+    @ObservationIgnored private var completionProvider: ScreenCompletionSummaryProvider
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     var isActing: Bool { interactions.selectedState?.phase.isBusy == true }
@@ -156,6 +158,7 @@ final class NotchViewModel {
         let actions = Actions(client: client)
         let provider = ScreenInteractionProvider(client: client)
         self.actions = actions
+        self.completionProvider = ScreenCompletionSummaryProvider(client: client)
         self.interactions = InteractionCoordinator(
             reader: provider,
             responder: InteractionResponder(provider: provider, actions: actions))
@@ -168,6 +171,7 @@ final class NotchViewModel {
         client = HerdrClient(socketPath: socketPath)
         actions = Actions(client: client)
         let provider = ScreenInteractionProvider(client: client)
+        completionProvider = ScreenCompletionSummaryProvider(client: client)
         interactions = InteractionCoordinator(
             reader: provider,
             responder: InteractionResponder(provider: provider, actions: actions))
@@ -232,15 +236,25 @@ final class NotchViewModel {
             connection = .connected
             globalError = nil
             let selectedBefore = selectedPaneID
-            let newlyBlocked = store.reconcile(snapshot)
-            _ = await reconcileInteractions(newlyBlocked: newlyBlocked)
-            for _ in newlyBlocked {
+            let transitions = store.reconcileTransitions(snapshot)
+            _ = await reconcileInteractions(
+                newlyBlocked: transitions.newlyBlockedPaneIDs)
+            await captureCompletionSummaries(
+                paneIDs: transitions.newlyFinishedPaneIDs)
+            for _ in transitions.newlyBlockedPaneIDs {
                 soundEngine?.play(.blocked)
             }
-            if !newlyBlocked.isEmpty,
+            for _ in transitions.newlyFinishedPaneIDs {
+                soundEngine?.play(.done)
+            }
+            if !transitions.newlyBlockedPaneIDs.isEmpty,
                settings?.autoExpandOnBlocked ?? true,
                let target = interactions.attentionOrder.first {
                 await surfaceBlockedPane(target)
+            }
+            if !transitions.newlyFinishedPaneIDs.isEmpty,
+               settings?.autoExpandOnDone ?? false {
+                expand()
             }
             // If an AUTO-surfaced blocked pane resolved (no longer blocked), clear
             // the card. But leave a MANUALLY-opened pane alone — the user opened it
@@ -269,16 +283,18 @@ final class NotchViewModel {
             lastError = "herdr rejected the event subscription: \(event.data["message"]?.stringValue ?? "invalid_request")"
             return
         }
-        let wasDone = event.paneID.map { store.finishedUnseen.contains($0) } ?? false
-        let didBlock = store.apply(event)
+        let transitions = store.applyTransitions(event)
+        let didBlock = !transitions.newlyBlockedPaneIDs.isEmpty
         if didBlock, event.paneID != nil {
             soundEngine?.play(.blocked)
         }
         Task { @MainActor in
             let selectedBefore = self.selectedPaneID
             _ = await self.reconcileInteractions(
-                newlyBlocked: didBlock ? event.paneID.map { [$0] } ?? [] : [],
+                newlyBlocked: transitions.newlyBlockedPaneIDs,
                 countsTowardFallbackCadence: false)
+            await self.captureCompletionSummaries(
+                paneIDs: transitions.newlyFinishedPaneIDs)
             self.synchronizePresentationAfterInteractionReconcile(
                 selectedBefore: selectedBefore)
             if didBlock, self.settings?.autoExpandOnBlocked ?? true,
@@ -287,10 +303,11 @@ final class NotchViewModel {
             }
         }
         // A pane that just became finished-unseen → play the done sound.
-        if !wasDone, let pane = event.paneID, store.finishedUnseen.contains(pane) {
+        for _ in transitions.newlyFinishedPaneIDs {
             soundEngine?.play(.done)
-            if settings?.autoExpandOnDone ?? false { expand() }
         }
+        if !transitions.newlyFinishedPaneIDs.isEmpty,
+           settings?.autoExpandOnDone ?? false { expand() }
         // Coordinator reconciliation above removes resolved/exited interaction
         // state without disturbing any other pane's response or refresh.
     }
@@ -328,11 +345,22 @@ final class NotchViewModel {
                 InteractionPaneSnapshot(
                     paneID: pane.paneID, agentID: pane.agent,
                     revision: pane.revision,
-                    isBlocked: store.derivedStatus(forPane: pane.paneID) == .blocked)
+                    isBlocked: store.derivedStatus(forPane: pane.paneID) == .blocked,
+                    isWorking: store.derivedStatus(forPane: pane.paneID) == .working)
             },
             newlyBlockedPaneIDs: newlyBlocked,
             preserveSelectedResolvedPane: manuallyOpened,
             countsTowardFallbackCadence: countsTowardFallbackCadence)
+    }
+
+    /// One bounded tail read per newly-finished transition. Failed or empty
+    /// extraction is intentionally not retried on every poll.
+    private func captureCompletionSummaries(paneIDs: [String]) async {
+        for paneID in paneIDs where store.panes[paneID] != nil {
+            guard let summary = try? await completionProvider.completionSummary(
+                paneID: paneID) else { continue }
+            interactions.cacheCompletionSummary(summary, paneID: paneID)
+        }
     }
 
     func selectPane(_ paneID: String) {

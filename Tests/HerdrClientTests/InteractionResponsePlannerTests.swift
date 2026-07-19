@@ -310,6 +310,13 @@ struct InteractionDisplayModelTests {
             isSelected: false)
         #expect(AttentionRollupDisplay.pillTaskTitle(
             items: [working], selectedPaneID: "w1:p3") == nil)
+        let finished = InteractionAttentionDisplayModel(
+            paneID: "w1:p4", taskTitle: "Auth fix", agentName: "codex",
+            workspaceLabel: "project", status: .done, state: nil,
+            completionSummary: "Implemented authentication and added tests.",
+            isSelected: false)
+        #expect(finished.stateText == "finished")
+        #expect(finished.summary == "Implemented authentication and added tests.")
 
         for (phase, expected) in [
             (PaneInteractionPhase.reading, "Reading the live prompt…"),

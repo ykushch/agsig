@@ -247,6 +247,35 @@ struct InteractionCoordinatorTests {
         #expect(coordinator.state(for: "w1:p1") == nil)
     }
 
+    @Test("completion summaries survive idle display and clear for new work or exit")
+    func completionSummaryLifecycle() async {
+        let value = read(paneID: "w1:p1", title: "Question")
+        let reader = ScriptedInteractionReader(["w1:p1": [value]])
+        let coordinator = makeCoordinator(reader: reader, interactions: [value])
+        _ = await coordinator.reconcile(
+            panes: [pane("w1:p1", revision: 1)], newlyBlockedPaneIDs: [])
+        _ = await coordinator.reconcile(
+            panes: [pane("w1:p1", revision: 2, isBlocked: false)],
+            newlyBlockedPaneIDs: [])
+
+        coordinator.cacheCompletionSummary("Implemented the fix.", paneID: "w1:p1")
+        #expect(coordinator.completionSummary(for: "w1:p1") == "Implemented the fix.")
+
+        _ = await coordinator.reconcile(
+            panes: [InteractionPaneSnapshot(
+                paneID: "w1:p1", agentID: "claude", revision: 3,
+                isBlocked: false, isWorking: true)],
+            newlyBlockedPaneIDs: [])
+        #expect(coordinator.completionSummary(for: "w1:p1") == nil)
+
+        _ = await coordinator.reconcile(
+            panes: [pane("w1:p1", revision: 4, isBlocked: false)],
+            newlyBlockedPaneIDs: [])
+        coordinator.cacheCompletionSummary("Second task finished.", paneID: "w1:p1")
+        _ = await coordinator.reconcile(panes: [], newlyBlockedPaneIDs: [])
+        #expect(coordinator.completionSummary(for: "w1:p1") == nil)
+    }
+
     @Test("one pane settling never suppresses refresh of another pane")
     func responseDoesNotSuppressAnotherPane() async {
         let p1 = read(paneID: "w1:p1", title: "First")

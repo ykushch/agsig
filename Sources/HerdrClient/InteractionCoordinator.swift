@@ -76,13 +76,15 @@ public struct InteractionPaneSnapshot: Sendable, Equatable {
     public let agentID: String?
     public let revision: UInt64?
     public let isBlocked: Bool
+    public let isWorking: Bool
 
     public init(paneID: String, agentID: String?, revision: UInt64?,
-                isBlocked: Bool) {
+                isBlocked: Bool, isWorking: Bool = false) {
         self.paneID = paneID
         self.agentID = agentID
         self.revision = revision
         self.isBlocked = isBlocked
+        self.isWorking = isWorking
     }
 }
 
@@ -107,6 +109,7 @@ public final class InteractionCoordinator {
     public private(set) var states: [String: PaneInteractionState] = [:]
     public private(set) var selectedPaneID: String?
     public private(set) var archivedDrafts: [String: PaneInteractionDraft] = [:]
+    public private(set) var completionSummaries: [String: String] = [:]
 
     @ObservationIgnored private let reader: any InteractionProviding
     @ObservationIgnored private let responder: any InteractionResponding
@@ -174,6 +177,10 @@ public final class InteractionCoordinator {
         knownPanes = Dictionary(uniqueKeysWithValues: panes.map { ($0.paneID, $0) })
         let liveIDs = Set(panes.map(\.paneID))
         let blockedIDs = Set(panes.filter(\.isBlocked).map(\.paneID))
+        completionSummaries = completionSummaries.filter { liveIDs.contains($0.key) }
+        for pane in panes where pane.isBlocked || pane.isWorking {
+            completionSummaries[pane.paneID] = nil
+        }
         var removed: [String] = []
 
         for paneID in states.keys.sorted() {
@@ -238,6 +245,17 @@ public final class InteractionCoordinator {
     }
 
     public func clearSelection() { selectedPaneID = nil }
+
+    public func completionSummary(for paneID: String) -> String? {
+        completionSummaries[paneID]
+    }
+
+    public func cacheCompletionSummary(_ summary: String, paneID: String) {
+        let value = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, let pane = knownPanes[paneID],
+              !pane.isBlocked, !pane.isWorking else { return }
+        completionSummaries[paneID] = value
+    }
 
     public func draftText(for paneID: String) -> String {
         guard let draft = states[paneID]?.draft,

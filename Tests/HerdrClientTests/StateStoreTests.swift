@@ -53,7 +53,10 @@ struct StateStoreTests {
         // w1:p1 is not the focused pane (w3:p1 is).
         _ = store.apply(statusEvent("w1:p1", "working"))
         #expect(store.derivedStatus(forPane: "w1:p1") == .working)
-        _ = store.apply(statusEvent("w1:p1", "idle"))
+        let finished = store.applyTransitions(statusEvent("w1:p1", "idle"))
+        #expect(finished.newlyFinishedPaneIDs == ["w1:p1"])
+        #expect(store.applyTransitions(statusEvent("w1:p1", "idle"))
+            .newlyFinishedPaneIDs.isEmpty)
         #expect(store.derivedStatus(forPane: "w1:p1") == .done) // finished + unseen
         #expect(store.finishedUnseen.contains("w1:p1"))
 
@@ -257,10 +260,17 @@ struct StateStoreTests {
     func reconcileDoneAndVanish() throws {
         let store = StateStore()
         store.hydrate(try loadSnapshot())
-        _ = store.reconcile(try snapshotWith(paneID: "w1:p1", status: "working"))
+        _ = store.reconcileTransitions(
+            try snapshotWith(paneID: "w1:p1", status: "working"))
         #expect(store.derivedStatus(forPane: "w1:p1") == .working)
         // working → idle on an unfocused pane derives done.
-        _ = store.reconcile(try snapshotWith(paneID: "w1:p1", status: "idle"))
+        let finished = store.reconcileTransitions(
+            try snapshotWith(paneID: "w1:p1", status: "idle"))
+        #expect(finished.newlyFinishedPaneIDs == ["w1:p1"])
+        #expect(finished.newlyBlockedPaneIDs.isEmpty)
+        #expect(store.reconcileTransitions(
+            try snapshotWith(paneID: "w1:p1", status: "idle"))
+            .newlyFinishedPaneIDs.isEmpty)
         #expect(store.derivedStatus(forPane: "w1:p1") == .done)
 
         // A snapshot missing w1:p1 drops it entirely.

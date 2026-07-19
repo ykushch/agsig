@@ -116,7 +116,7 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
 
     public init(paneID: String, taskTitle: String, agentName: String,
                 workspaceLabel: String, status: RollupStatus,
-                state: PaneInteractionState?,
+                state: PaneInteractionState?, completionSummary: String? = nil,
                 isSelected: Bool) {
         self.paneID = paneID
         self.taskTitle = taskTitle
@@ -144,6 +144,10 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
             summary = [progress, interaction.title, interaction.body]
                 .compactMap { $0 }.map(Self.oneLine).first { !$0.isEmpty }
                 ?? "Prompt is ready for review."
+        } else if status == .done {
+            stateText = "finished"
+            summary = completionSummary.map(Self.oneLine)
+                ?? "Finished. Jump to review the final output."
         } else if status == .blocked {
             stateText = "needs input"
             summary = "Reading the live prompt…"

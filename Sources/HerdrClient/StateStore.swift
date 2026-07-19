@@ -27,6 +27,17 @@ public enum RollupStatus: String, Sendable, CaseIterable {
     }
 }
 
+public struct StateTransitionResult: Sendable, Equatable {
+    public let newlyBlockedPaneIDs: [String]
+    public let newlyFinishedPaneIDs: [String]
+
+    public init(newlyBlockedPaneIDs: [String] = [],
+                newlyFinishedPaneIDs: [String] = []) {
+        self.newlyBlockedPaneIDs = newlyBlockedPaneIDs.sorted()
+        self.newlyFinishedPaneIDs = newlyFinishedPaneIDs.sorted()
+    }
+}
+
 /// Single observable source of truth for the UI: panes/agents keyed by id, with
 /// per-tab and per-workspace rollups. Hydrated once from `session.snapshot`,
 /// then kept live by events. `@MainActor` so SwiftUI can bind directly.
@@ -98,6 +109,15 @@ public final class StateStore {
     /// INTO `blocked` (so the UI can auto-expand + play a sound), matching `apply`.
     @discardableResult
     public func reconcile(_ snapshot: Snapshot) -> [String] {
+        reconcileTransitions(snapshot).newlyBlockedPaneIDs
+    }
+
+    /// Detailed snapshot transition evidence used by UI side effects. Keeping
+    /// this alongside the compatibility `reconcile` result prevents polling and
+    /// events from developing different definitions of "finished".
+    @discardableResult
+    public func reconcileTransitions(_ snapshot: Snapshot) -> StateTransitionResult {
+        let finishedBefore = finishedUnseen
         // Topology first: add new panes, drop vanished ones, refresh tab/workspace.
         let fresh = snapshot.uniquePanes
         let freshIDs = Set(fresh.map(\.paneID))
@@ -125,7 +145,9 @@ public final class StateStore {
             }
         }
         bump()
-        return newlyBlocked
+        return StateTransitionResult(
+            newlyBlockedPaneIDs: newlyBlocked,
+            newlyFinishedPaneIDs: Array(finishedUnseen.subtracting(finishedBefore)))
     }
 
     // MARK: Event application
@@ -135,6 +157,19 @@ public final class StateStore {
     /// (the UI uses this to auto-expand).
     @discardableResult
     public func apply(_ event: EventEnvelope) -> Bool {
+        !applyTransitions(event).newlyBlockedPaneIDs.isEmpty
+    }
+
+    @discardableResult
+    public func applyTransitions(_ event: EventEnvelope) -> StateTransitionResult {
+        let finishedBefore = finishedUnseen
+        let didBlock = applyEvent(event)
+        return StateTransitionResult(
+            newlyBlockedPaneIDs: didBlock ? event.paneID.map { [$0] } ?? [] : [],
+            newlyFinishedPaneIDs: Array(finishedUnseen.subtracting(finishedBefore)))
+    }
+
+    private func applyEvent(_ event: EventEnvelope) -> Bool {
         switch event.event {
         case "pane_agent_status_changed":
             return applyStatusChange(event)
