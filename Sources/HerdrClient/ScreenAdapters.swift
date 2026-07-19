@@ -30,22 +30,10 @@ public struct ScreenAdapterInput: Sendable, Equatable {
     }
 }
 
-/// Both representations exist temporarily: normalized consumers use
-/// `interaction`; the current Claude UI continues to use `legacyPrompt`.
-public struct ScreenAdapterResult: Sendable, Equatable {
-    public let interaction: PendingInteraction
-    public let legacyPrompt: ClassifiedPrompt
-
-    public init(interaction: PendingInteraction, legacyPrompt: ClassifiedPrompt) {
-        self.interaction = interaction
-        self.legacyPrompt = legacyPrompt
-    }
-}
-
 public protocol ScreenAdapter: Sendable {
     var adapterID: String { get }
     var agentIDs: Set<String> { get }
-    func parse(_ input: ScreenAdapterInput) -> ScreenAdapterResult
+    func parse(_ input: ScreenAdapterInput) -> PendingInteraction
 }
 
 /// Case-sensitive exact-agent routing. Unknown and nil identifiers always use
@@ -75,7 +63,7 @@ public struct ScreenAdapterRegistry: Sendable {
         agentID.flatMap { byAgentID[$0] }?.adapterID ?? fallback.adapterID
     }
 
-    public func parse(_ input: ScreenAdapterInput) -> ScreenAdapterResult {
+    public func parse(_ input: ScreenAdapterInput) -> PendingInteraction {
         let adapter = input.agentID.flatMap { byAgentID[$0] } ?? fallback
         return adapter.parse(input)
     }
@@ -87,10 +75,9 @@ public struct GenericScreenAdapter: ScreenAdapter {
 
     public init() {}
 
-    public func parse(_ input: ScreenAdapterInput) -> ScreenAdapterResult {
+    public func parse(_ input: ScreenAdapterInput) -> PendingInteraction {
         let text = input.normalizedDetectionText
-        let legacy = ClassifiedPrompt.rawFallback(text)
-        let interaction = PendingInteraction(
+        return PendingInteraction(
             paneID: input.paneID, kind: .unknown, body: text,
             presentation: InteractionPresentation(mechanism: .manual),
             capabilities: [.manualTerminal],
@@ -98,7 +85,6 @@ public struct GenericScreenAdapter: ScreenAdapter {
                 source: .screen, providerID: adapterID, agentID: input.agentID,
                 paneRevision: input.revisionAsInt, confidence: .fallback,
                 capturedText: text))
-        return ScreenAdapterResult(interaction: interaction, legacyPrompt: legacy)
     }
 }
 
@@ -118,7 +104,7 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
 
     public init() {}
 
-    public func parse(_ input: ScreenAdapterInput) -> ScreenAdapterResult {
+    public func parse(_ input: ScreenAdapterInput) -> PendingInteraction {
         let text = input.normalizedDetectionText
         let low = text.lowercased()
         guard Self.blockMarkers.contains(where: low.contains) else {
@@ -128,22 +114,64 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
         guard !options.isEmpty else { return GenericScreenAdapter().parse(input) }
 
         let isApproval = Self.approvalMarkers.contains(where: low.contains)
-        let prompt = ClassifiedPrompt(
+        let title = PromptClassifier.parseQuestionTitle(text)
+        let parsedSteps = PromptClassifier.parseWizardSteps(
+            text, currentLabel: input.currentTabLabel)
+        let isMultiSelect = options.contains { $0.isChecked != nil }
+        let mechanism: InteractionMechanism = if isMultiSelect {
+            .multiSelect
+        } else if Self.navigationMarkers.contains(where: low.contains),
+                  options.contains(where: \.isSelected) {
+            .arrowNavigate
+        } else {
+            .numberedShortcut
+        }
+        var capabilities: Set<InteractionCapability> = [
+            isMultiSelect ? .selectMany : .selectOne,
+        ]
+        if Self.denyMarkers.contains(where: low.contains) {
+            capabilities.insert(.deny)
+        }
+        if options.contains(where: \.isTextEntry) {
+            capabilities.insert(.enterText)
+        }
+        if parsedSteps.count > 1 { capabilities.insert(.navigateSteps) }
+        if isApproval { capabilities.insert(.approve) }
+
+        let nonSubmitSteps = parsedSteps.filter { !$0.isSubmit }
+        let progress: InteractionProgress? = nonSubmitSteps.isEmpty ? nil
+            : InteractionProgress(
+                current: parsedSteps.firstIndex(where: \.isCurrent).map { $0 + 1 },
+                total: nonSubmitSteps.count,
+                unanswered: nonSubmitSteps.filter { !$0.isAnswered }.count)
+        return PendingInteraction(
+            paneID: input.paneID,
             kind: isApproval ? .approval : .question,
-            options: options,
-            denyKeys: Self.denyMarkers.contains(where: low.contains) ? ["esc"] : [],
-            promptText: text,
-            isMarkdown: PromptClassifier.looksLikeMarkdown(text),
-            questionTitle: isApproval ? nil : PromptClassifier.parseQuestionTitle(text),
-            steps: PromptClassifier.parseWizardSteps(text, currentLabel: input.currentTabLabel),
-            answerStyle: (Self.navigationMarkers.contains(where: low.contains)
-                && options.contains(where: \.isSelected)) ? .arrowNavigate : .numberedShortcut,
-            isMultiSelect: options.contains { $0.isChecked != nil })
-        let interaction = PendingInteraction(
-            paneID: input.paneID, classifiedPrompt: prompt,
-            agentID: input.agentID, paneRevision: input.revisionAsInt,
-            providerID: adapterID, confidence: .exact)
-        return ScreenAdapterResult(interaction: interaction, legacyPrompt: prompt)
+            title: title,
+            body: isApproval
+                ? PromptClassifier.interactionBody(text, excluding: title) : nil,
+            progress: progress,
+            choices: options.map {
+                InteractionChoice(
+                    kind: $0.isTextEntry ? .textEntry : .option,
+                    label: $0.label, description: $0.description)
+            },
+            steps: parsedSteps.map {
+                InteractionStep(label: $0.label, isAnswered: $0.isAnswered,
+                                isSubmit: $0.isSubmit)
+            },
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: options.firstIndex(where: \.isSelected),
+                checkedChoiceIndexes: options.indices.filter {
+                    options[$0].isChecked == true
+                },
+                activeStepIndex: parsedSteps.firstIndex(where: \.isCurrent),
+                mechanism: mechanism),
+            capabilities: capabilities,
+            evidence: InteractionEvidence(
+                source: .screen, providerID: adapterID,
+                agentID: input.agentID, paneRevision: input.revisionAsInt,
+                confidence: .exact, capturedText: text))
     }
 }
 
@@ -171,7 +199,7 @@ public struct CodexScreenAdapter: ScreenAdapter {
 
     public init() {}
 
-    public func parse(_ input: ScreenAdapterInput) -> ScreenAdapterResult {
+    public func parse(_ input: ScreenAdapterInput) -> PendingInteraction {
         let text = input.normalizedDetectionText
         let low = text.lowercased()
         let interaction: PendingInteraction?
@@ -185,10 +213,7 @@ public struct CodexScreenAdapter: ScreenAdapter {
             interaction = nil
         }
 
-        guard let interaction else { return GenericScreenAdapter().parse(input) }
-        // M2 extracts Codex structure but deliberately leaves the old UI raw.
-        return ScreenAdapterResult(
-            interaction: interaction, legacyPrompt: ClassifiedPrompt.rawFallback(text))
+        return interaction ?? GenericScreenAdapter().parse(input)
     }
 
     private func parseQuestion(_ input: ScreenAdapterInput, text: String) -> PendingInteraction? {

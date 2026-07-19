@@ -14,16 +14,12 @@ public enum ActionResult: Sendable, Equatable {
 public enum ActionError: Error, Sendable {
     /// herdr rejected the keys (invalid key or `prefix+` chord) before writing.
     case keysRejected(message: String)
-    /// The classifier produced no keys for this intent (e.g. raw fallback) —
-    /// caller must use `sendRawKeys`/`reply` instead of guessing.
-    case noKeysForOption
 }
 
 extension ActionError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case let .keysRejected(message): message
-        case .noKeysForOption: "No validated keys are available for that option."
         }
     }
 }
@@ -40,35 +36,6 @@ public struct Actions: Sendable {
     public init(client: any RequestSending, ghostty: any GhosttyActivating = GhosttyActivator()) {
         self.client = client
         self.ghostty = ghostty
-    }
-
-    // MARK: Approve / deny / answer
-
-    /// Approve using the classifier's first option (honoring its answer style).
-    @discardableResult
-    public func approve(pane: String, prompt: ClassifiedPrompt) async throws -> ActionResult {
-        let keys = prompt.keysToAnswer(optionIndex: 0)
-        guard !keys.isEmpty else { throw ActionError.noKeysForOption }
-        return try await sendRawKeys(pane: pane, keys: keys)
-    }
-
-    /// Deny/cancel using the classifier's `denyKeys` (usually `esc`).
-    @discardableResult
-    public func deny(pane: String, prompt: ClassifiedPrompt) async throws -> ActionResult {
-        guard !prompt.denyKeys.isEmpty else { throw ActionError.noKeysForOption }
-        return try await sendRawKeys(pane: pane, keys: prompt.denyKeys)
-    }
-
-    /// Answer the option at `index`, honoring the widget's answer style:
-    /// number-key for permission prompts, arrow-navigate + Enter/Space for
-    /// `AskUserQuestion` forms (which ignore number keys). This is the fix for
-    /// "clicking any option always picks the first" — number keys did nothing on
-    /// the form, so Enter committed whatever the cursor was already on.
-    @discardableResult
-    public func answer(pane: String, prompt: ClassifiedPrompt, optionIndex: Int) async throws -> ActionResult {
-        let keys = prompt.keysToAnswer(optionIndex: optionIndex)
-        guard !keys.isEmpty else { throw ActionError.noKeysForOption }
-        return try await sendRawKeys(pane: pane, keys: keys)
     }
 
     /// Free-text reply (F9). Sends text; the caller decides whether a trailing

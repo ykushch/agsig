@@ -9,8 +9,7 @@ final class NotchWindowController {
     private let hostingView: NSHostingView<PlaceholderNotchView>
 
     private let fallbackNotchWidth: CGFloat = 190
-    private let expandedWidth: CGFloat = 360
-    private let expandedHeight: CGFloat = 240
+    private let expandedWidth: CGFloat = 420
     private let collapsedHeight: CGFloat = 30
 
     init(viewModel: NotchViewModel) {
@@ -46,7 +45,9 @@ final class NotchWindowController {
         let screen = Self.notchScreen()
         let notchWidth = Self.notchWidth(on: screen) ?? fallbackNotchWidth
         let width = viewModel.isExpanded ? expandedWidth : notchWidth
-        let height = viewModel.isExpanded ? expandedHeight : collapsedHeight
+        let height = viewModel.isExpanded
+            ? min(680, max(480, screen.visibleFrame.height * 0.72))
+            : collapsedHeight
         hostingView.rootView = PlaceholderNotchView(model: viewModel, notchWidth: notchWidth)
         panel.isInteractive = viewModel.isExpanded
         panel.setFrame(Self.frame(on: screen, width: width, height: height), display: true, animate: true)

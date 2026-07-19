@@ -8,39 +8,12 @@ public protocol InteractionProviding: Sendable {
                      paneRevision: UInt64?) async throws -> PendingInteraction
 }
 
-/// Paired normalized + temporary legacy representation from one terminal read.
-/// M6 removes the legacy field when the remaining Claude UI migrates.
-public struct InteractionRead: Sendable, Equatable {
-    public let interaction: PendingInteraction
-    public let legacyPrompt: ClassifiedPrompt
-
-    public init(interaction: PendingInteraction,
-                legacyPrompt: ClassifiedPrompt) {
-        self.interaction = interaction
-        self.legacyPrompt = legacyPrompt
-    }
-}
-
-public protocol InteractionReading: InteractionProviding {
-    func read(paneID: String, agentID: String?,
-              paneRevision: UInt64?) async throws -> InteractionRead
-}
-
-extension InteractionReading {
-    public func interaction(paneID: String, agentID: String?,
-                            paneRevision: UInt64?) async throws
-        -> PendingInteraction {
-        try await read(paneID: paneID, agentID: agentID,
-                       paneRevision: paneRevision).interaction
-    }
-}
-
 public enum InteractionProviderError: Error, Sendable, Equatable {
     case unreadablePane(paneID: String)
 }
 
 /// Re-reads both herdr pane views and runs the exact-agent screen adapter.
-public struct ScreenInteractionProvider: InteractionReading, Sendable {
+public struct ScreenInteractionProvider: InteractionProviding, Sendable {
     private let client: any RequestSending
     private let classifier: PromptClassifier
 
@@ -50,19 +23,17 @@ public struct ScreenInteractionProvider: InteractionReading, Sendable {
         self.classifier = classifier
     }
 
-    public func read(paneID: String, agentID: String?,
-                     paneRevision: UInt64?) async throws -> InteractionRead {
+    public func interaction(paneID: String, agentID: String?,
+                            paneRevision: UInt64?) async throws
+        -> PendingInteraction {
         let detection = try await read(paneID: paneID, source: .detection)
         let visible = try? await read(
             paneID: paneID, source: .visible, format: "ansi", stripAnsi: false)
         let currentTab = visible.flatMap(Self.currentTabLabel)
-        let interaction = classifier.classifyInteraction(
+        return classifier.classifyInteraction(
             paneID: paneID, agent: agentID, text: detection,
             visibleANSIText: visible, paneRevision: paneRevision,
             currentTabLabel: currentTab)
-        let legacy = classifier.classify(
-            agent: agentID, text: detection, currentTabLabel: currentTab)
-        return InteractionRead(interaction: interaction, legacyPrompt: legacy)
     }
 
     private func read(paneID: String, source: ReadSource, format: String? = nil,

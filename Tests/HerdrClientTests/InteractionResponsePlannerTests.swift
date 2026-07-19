@@ -246,4 +246,68 @@ struct InteractionDisplayModelTests {
         #expect(approval.showsCancel)
         #expect(!approval.exposesStructuredSubmit)
     }
+
+    @Test("attention rows surface prompt, phases, stale drafts, errors, and accessibility")
+    func attentionStates() {
+        let interaction = PendingInteraction(
+            paneID: "w1:p1", kind: .question, title: "Choose deployment target",
+            progress: InteractionProgress(current: 2, total: 3, unanswered: 2),
+            choices: [InteractionChoice(label: "Production")],
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: 0, mechanism: .arrowNavigate),
+            capabilities: [.selectOne],
+            evidence: InteractionEvidence(
+                source: .screen, providerID: "test", agentID: "claude",
+                confidence: .exact))
+        let readyState = PaneInteractionState(
+            paneID: "w1:p1", agentID: "claude", interaction: interaction)
+        let ready = InteractionAttentionDisplayModel(
+            paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+            status: .blocked, state: readyState, isSelected: true)
+        #expect(ready.stateText == "needs input")
+        #expect(ready.summary == "Question 2/3 (2 unanswered)")
+        #expect(ready.accessibilityLabel.contains("claude — project"))
+        #expect(ready.accessibilityLabel.contains("pane w1:p1"))
+
+        for (phase, expected) in [
+            (PaneInteractionPhase.reading, "Reading the live prompt…"),
+            (.responding, "Revalidating and sending…"),
+            (.settling, "Waiting for the terminal to settle…"),
+        ] {
+            let state = PaneInteractionState(
+                paneID: "w1:p1", interaction: interaction, phase: phase)
+            let row = InteractionAttentionDisplayModel(
+                paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+                status: .blocked, state: state, isSelected: false)
+            #expect(row.stateText == phase.rawValue)
+            #expect(row.summary == expected)
+        }
+
+        let stale = PaneInteractionState(
+            paneID: "w1:p1", interaction: interaction,
+            draft: PaneInteractionDraft(
+                text: "old answer", fingerprint: interaction.fingerprint,
+                state: .stale))
+        #expect(InteractionAttentionDisplayModel(
+            paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+            status: .blocked, state: stale, isSelected: false).stateText
+            == "draft needs review")
+
+        let failed = PaneInteractionState(
+            paneID: "w1:p1", interaction: interaction, error: "Input rejected")
+        let errorRow = InteractionAttentionDisplayModel(
+            paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+            status: .blocked, state: failed, isSelected: false)
+        #expect(errorRow.stateText == "error")
+        #expect(errorRow.summary == "Input rejected")
+    }
+
+    @Test("Claude text-entry choices remain typed in shared display data")
+    func choiceKinds() {
+        let text = Fixtures.string("prompts/live-askquestion-multi-detection.txt")
+        let interaction = PromptClassifier().classifyInteraction(
+            paneID: "w1:p1", agent: "claude", text: text)
+        let display = InteractionDisplayModel(interaction: interaction)
+        #expect(display.choices.filter { $0.kind == .textEntry }.count == 2)
+    }
 }

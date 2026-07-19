@@ -39,15 +39,6 @@ struct ScreenAdapterRegistryTests {
         #expect(interaction.evidence.providerID == "generic-screen")
     }
 
-    @Test("Codex normalization does not enable the unrevalidated legacy response path")
-    func codexLegacyPathStaysRaw() {
-        let text = Fixtures.string(
-            "interactions/codex-plan-single-select-q1-df1ba0216047.fixture/detection.txt")
-        let legacy = PromptClassifier().classify(agent: "codex", text: text)
-        #expect(legacy.kind == .freeText)
-        #expect(legacy.options.isEmpty)
-        #expect(legacy.denyKeys.isEmpty)
-    }
 }
 
 @Suite("Codex adapter over captured M0C corpus")
@@ -170,10 +161,15 @@ struct CodexScreenAdapterCorpusTests {
 
 @Suite("Claude screen adapter regressions")
 struct ClaudeScreenAdapterRegressionTests {
-    @Test("all labeled Claude fixtures route through Claude and preserve legacy output")
+    @Test("all labeled Claude fixtures produce their normalized ground truth")
     func labeledFixtures() throws {
         struct Labels: Decodable {
-            struct Fixture: Decodable { let file: String }
+            struct Fixture: Decodable {
+                struct Option: Decodable { let label: String }
+                let file: String
+                let kind: String
+                let options: [Option]
+            }
             let fixtures: [Fixture]
         }
         let labels = try JSONDecoder().decode(
@@ -183,11 +179,16 @@ struct ClaudeScreenAdapterRegressionTests {
             let text = Fixtures.string("prompts/\(fixture.file)")
             let interaction = classifier.classifyInteraction(
                 paneID: "fixture", agent: "claude", text: text)
-            let legacy = classifier.classify(agent: "claude", text: text)
+            let expectedKind: InteractionKind = switch fixture.kind {
+            case "approval": .approval
+            case "question": .question
+            default: .unknown
+            }
+            #expect(interaction.kind == expectedKind)
             #expect(interaction.evidence.providerID
-                == (legacy.kind == .freeText ? "generic-screen" : "claude-screen"))
-            #expect(interaction.evidence.capturedText == legacy.promptText)
-            #expect(interaction.choices.map(\.label) == legacy.options.map(\.label))
+                == (expectedKind == .unknown ? "generic-screen" : "claude-screen"))
+            #expect(interaction.evidence.capturedText == text)
+            #expect(interaction.choices.map(\.label) == fixture.options.map(\.label))
         }
     }
 }

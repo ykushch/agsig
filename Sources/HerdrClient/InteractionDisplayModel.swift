@@ -2,14 +2,16 @@ import Foundation
 
 public struct InteractionDisplayChoice: Sendable, Equatable {
     public let index: Int
+    public let kind: InteractionChoiceKind
     public let label: String
     public let description: String?
     public let isSelected: Bool
     public let isChecked: Bool?
 
-    public init(index: Int, label: String, description: String?,
+    public init(index: Int, kind: InteractionChoiceKind, label: String, description: String?,
                 isSelected: Bool, isChecked: Bool?) {
         self.index = index
+        self.kind = kind
         self.label = label
         self.description = description
         self.isSelected = isSelected
@@ -41,7 +43,8 @@ public struct InteractionDisplayModel: Sendable, Equatable {
         choices = interaction.choices.indices.map { index in
             let choice = interaction.choices[index]
             return InteractionDisplayChoice(
-                index: index, label: choice.label, description: choice.description,
+                index: index, kind: choice.kind, label: choice.label,
+                description: choice.description,
                 isSelected: interaction.presentation.selectedChoiceIndex == index,
                 isChecked: isMultiSelect ? checked.contains(index) : nil)
         }
@@ -77,5 +80,66 @@ public struct InteractionDisplayModel: Sendable, Equatable {
             return progress.unanswered.map { "\(base) (\($0) unanswered)" } ?? base
         }
         return progress.unanswered.map { "\($0) unanswered questions" }
+    }
+}
+
+/// Deterministic summary for one pane in the shared attention queue. This is
+/// deliberately UI-framework-free so ordering, state language, summaries, and
+/// accessibility can be fixture tested.
+public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatable {
+    public let paneID: String
+    public let agentName: String
+    public let workspaceLabel: String
+    public let status: RollupStatus
+    public let stateText: String
+    public let summary: String
+    public let isSelected: Bool
+
+    public var id: String { paneID }
+    public var title: String { "\(agentName) — \(workspaceLabel)" }
+    public var accessibilityLabel: String {
+        "\(title), pane \(paneID), \(stateText), \(summary)"
+    }
+
+    public init(paneID: String, agentName: String, workspaceLabel: String,
+                status: RollupStatus, state: PaneInteractionState?,
+                isSelected: Bool) {
+        self.paneID = paneID
+        self.agentName = agentName
+        self.workspaceLabel = workspaceLabel
+        self.status = status
+        self.isSelected = isSelected
+        if let error = state?.error, !error.isEmpty {
+            stateText = "error"
+            summary = Self.oneLine(error)
+        } else if state?.draft.state == .stale {
+            stateText = "draft needs review"
+            summary = "The saved draft belongs to an earlier prompt."
+        } else if let phase = state?.phase, phase != .idle {
+            stateText = phase.rawValue
+            summary = switch phase {
+            case .reading: "Reading the live prompt…"
+            case .responding: "Revalidating and sending…"
+            case .settling: "Waiting for the terminal to settle…"
+            case .idle: ""
+            }
+        } else if let interaction = state?.interaction {
+            stateText = interaction.kind == .unknown ? "manual input" : "needs input"
+            let progress = InteractionDisplayModel.progressText(interaction.progress)
+            summary = [progress, interaction.title, interaction.body]
+                .compactMap { $0 }.map(Self.oneLine).first { !$0.isEmpty }
+                ?? "Prompt is ready for review."
+        } else if status == .blocked {
+            stateText = "needs input"
+            summary = "Reading the live prompt…"
+        } else {
+            stateText = status.rawValue
+            summary = "No pending interaction."
+        }
+    }
+
+    private static func oneLine(_ value: String) -> String {
+        value.split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
     }
 }

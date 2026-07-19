@@ -127,38 +127,3 @@ struct InteractionDraftStoreTests {
         #expect(store.draft(for: first)?.text == "confirmed note")
     }
 }
-
-@Suite("ClassifiedPrompt compatibility bridge")
-struct ClassifiedPromptBridgeTests {
-    struct Labels: Decodable {
-        struct Fixture: Decodable { let file: String }
-        let agent: String
-        let fixtures: [Fixture]
-    }
-
-    @Test("Claude fixtures preserve existing user-visible prompt content")
-    func claudeFixtureEquivalence() throws {
-        let labels = try JSONDecoder().decode(
-            Labels.self, from: Fixtures.data("prompts/labels.json"))
-        let classifier = PromptClassifier()
-
-        for fixture in labels.fixtures {
-            let prompt = classifier.classify(
-                agent: labels.agent,
-                text: Fixtures.string("prompts/\(fixture.file)"))
-            let interaction = PendingInteraction(
-                paneID: "fixture", classifiedPrompt: prompt, agentID: labels.agent,
-                paneRevision: 7)
-
-            #expect(interaction.evidence.capturedText == prompt.promptText)
-            #expect(interaction.title == prompt.questionTitle)
-            #expect(interaction.choices.map(\.label) == prompt.options.map(\.label))
-            #expect(interaction.choices.map(\.description) == prompt.options.map(\.description))
-            #expect(interaction.presentation.selectedChoiceIndex == prompt.options.firstIndex(where: \.isSelected))
-            #expect(interaction.presentation.checkedChoiceIndexes == prompt.options.indices.filter {
-                prompt.options[$0].isChecked == true
-            })
-            #expect(interaction.steps.map(\.label) == prompt.steps.map(\.label))
-        }
-    }
-}

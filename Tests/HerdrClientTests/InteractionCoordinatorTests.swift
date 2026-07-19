@@ -2,16 +2,16 @@ import Foundation
 import Testing
 @testable import HerdrClient
 
-private actor ScriptedInteractionReader: InteractionReading {
-    private var values: [String: [InteractionRead]]
+private actor ScriptedInteractionReader: InteractionProviding {
+    private var values: [String: [PendingInteraction]]
     private var calls: [String] = []
 
-    init(_ values: [String: [InteractionRead]]) {
+    init(_ values: [String: [PendingInteraction]]) {
         self.values = values
     }
 
-    func read(paneID: String, agentID: String?,
-              paneRevision: UInt64?) async throws -> InteractionRead {
+    func interaction(paneID: String, agentID: String?,
+                     paneRevision: UInt64?) async throws -> PendingInteraction {
         calls.append(paneID)
         guard var paneValues = values[paneID], !paneValues.isEmpty else {
             throw InteractionProviderError.unreadablePane(paneID: paneID)
@@ -61,14 +61,14 @@ private actor AsyncGate {
     }
 }
 
-private actor GatedInteractionReader: InteractionReading {
-    let first: InteractionRead
-    let next: InteractionRead
+private actor GatedInteractionReader: InteractionProviding {
+    let first: PendingInteraction
+    let next: PendingInteraction
     let started: AsyncGate
     let release: AsyncGate
     private var callCount = 0
 
-    init(first: InteractionRead, next: InteractionRead,
+    init(first: PendingInteraction, next: PendingInteraction,
          started: AsyncGate, release: AsyncGate) {
         self.first = first
         self.next = next
@@ -76,8 +76,8 @@ private actor GatedInteractionReader: InteractionReading {
         self.release = release
     }
 
-    func read(paneID: String, agentID: String?,
-              paneRevision: UInt64?) async throws -> InteractionRead {
+    func interaction(paneID: String, agentID: String?,
+                     paneRevision: UInt64?) async throws -> PendingInteraction {
         callCount += 1
         if callCount == 1 {
             await started.open()
@@ -117,7 +117,7 @@ struct InteractionCoordinatorTests {
             "w1:p1": [p1], "w1:p2": [p2], "w1:p3": [p3],
         ])
         let coordinator = makeCoordinator(
-            reader: reader, interactions: [p1.interaction, p2.interaction, p3.interaction])
+            reader: reader, interactions: [p1, p2, p3])
 
         let hydrated = await coordinator.reconcile(
             panes: [pane("w1:p1", revision: 1), pane("w1:p2", revision: 1)],
@@ -146,7 +146,7 @@ struct InteractionCoordinatorTests {
     func selectionAlwaysRereads() async {
         let value = read(paneID: "w1:p1", title: "Question")
         let reader = ScriptedInteractionReader(["w1:p1": [value]])
-        let coordinator = makeCoordinator(reader: reader, interactions: [value.interaction])
+        let coordinator = makeCoordinator(reader: reader, interactions: [value])
         _ = await coordinator.reconcile(
             panes: [pane("w1:p1", revision: 1)], newlyBlockedPaneIDs: [])
         #expect(await reader.count(for: "w1:p1") == 1)
@@ -166,7 +166,7 @@ struct InteractionCoordinatorTests {
             "w1:p1": [p1], "w1:p2": [p2a, p2b],
         ])
         let coordinator = makeCoordinator(
-            reader: reader, interactions: [p1.interaction, p2a.interaction])
+            reader: reader, interactions: [p1, p2a])
         _ = await coordinator.reconcile(
             panes: [pane("w1:p1", revision: 1), pane("w1:p2", revision: 1)],
             newlyBlockedPaneIDs: [])
@@ -188,7 +188,7 @@ struct InteractionCoordinatorTests {
         let coordinator = InteractionCoordinator(
             reader: reader,
             responder: ImmediateInteractionResponder(
-                interactions: ["w1:p1": value.interaction]),
+                interactions: ["w1:p1": value]),
             fallbackPollInterval: 4, revisionReliable: false)
         let panes = [pane("w1:p1", revision: nil)]
 
@@ -215,7 +215,7 @@ struct InteractionCoordinatorTests {
         let replacement = read(paneID: "w1:p1", title: "Replacement")
         let reader = ScriptedInteractionReader(["w1:p1": [first, replacement]])
         let coordinator = makeCoordinator(
-            reader: reader, interactions: [first.interaction])
+            reader: reader, interactions: [first])
         _ = await coordinator.reconcile(
             panes: [pane("w1:p1", revision: 1)], newlyBlockedPaneIDs: [])
         await coordinator.select(paneID: "w1:p1")
@@ -259,7 +259,7 @@ struct InteractionCoordinatorTests {
         let coordinator = InteractionCoordinator(
             reader: reader,
             responder: GatedInteractionResponder(
-                interaction: p1.interaction, gate: gate),
+                interaction: p1, gate: gate),
             settleDelayNanoseconds: 0, sleep: { _ in })
         _ = await coordinator.reconcile(
             panes: [pane("w1:p1", revision: 1), pane("w1:p2", revision: 1)],
@@ -298,7 +298,7 @@ struct InteractionCoordinatorTests {
         let coordinator = InteractionCoordinator(
             reader: reader,
             responder: ImmediateInteractionResponder(
-                interactions: ["w1:p1": new.interaction]))
+                interactions: ["w1:p1": new]))
 
         let firstReconcile = Task { @MainActor in
             await coordinator.reconcile(
@@ -341,8 +341,8 @@ struct InteractionCoordinatorTests {
             revision: revision, isBlocked: isBlocked)
     }
 
-    private func read(paneID: String, title: String) -> InteractionRead {
-        let interaction = PendingInteraction(
+    private func read(paneID: String, title: String) -> PendingInteraction {
+        PendingInteraction(
             paneID: paneID, kind: .question, title: title,
             choices: [InteractionChoice(label: "One"),
                       InteractionChoice(label: "Two")],
@@ -353,13 +353,5 @@ struct InteractionCoordinatorTests {
                 source: .screen, providerID: "test",
                 agentID: paneID == "w1:p1" ? "claude" : "codex",
                 paneRevision: 1, confidence: .exact))
-        return InteractionRead(
-            interaction: interaction,
-            legacyPrompt: ClassifiedPrompt(
-                kind: .question,
-                options: [PromptOption(label: "One", keysToSend: ["enter"])],
-                denyKeys: ["esc"], promptText: title,
-                isMarkdown: false, questionTitle: title,
-                answerStyle: .arrowNavigate))
     }
 }

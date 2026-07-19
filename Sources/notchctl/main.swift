@@ -5,7 +5,6 @@ import HerdrClient
 enum CLI {
     static var jsonOutput = false
     static var explicitSocket: String?
-    static let classifier = PromptClassifier()
 
     static func main() async {
         var args = Array(CommandLine.arguments.dropFirst())
@@ -110,30 +109,46 @@ enum CLI {
             isDirectory: isDirectory)
     }
 
-    static func classify(_ client: HerdrClient, pane: String) async throws -> ClassifiedPrompt {
+    struct InteractionContext {
+        let interaction: PendingInteraction
+        let agentID: String?
+        let revision: UInt64?
+    }
+
+    static func classify(_ client: HerdrClient, pane: String) async throws
+        -> InteractionContext {
         let snapshotResult = try await client.request("session.snapshot")
         let snapshot = try (snapshotResult["snapshot"] ?? snapshotResult).decode(Snapshot.self)
-        let agent = snapshot.uniquePanes.first { $0.paneID == pane }?.agent
-        let params = try PaneReadParams(paneID: pane, source: .detection).asJSONValue()
-        let result = try await client.request("pane.read", params: params)
-        let text = (try? result["read"]?.decode(PaneReadResult.self))?.text ?? ""
-        return classifier.classify(agent: agent, text: text)
+        let paneInfo = snapshot.uniquePanes.first { $0.paneID == pane }
+        let interaction = try await ScreenInteractionProvider(client: client).interaction(
+            paneID: pane, agentID: paneInfo?.agent, paneRevision: paneInfo?.revision)
+        return InteractionContext(
+            interaction: interaction, agentID: paneInfo?.agent,
+            revision: paneInfo?.revision)
     }
 
     static func resolve(_ client: HerdrClient, pane: String, choice: String) async throws {
-        let prompt = try await classify(client, pane: pane)
+        let context = try await classify(client, pane: pane)
+        let interaction = context.interaction
         let actions = Actions(client: client)
-        let result: ActionResult
+        let intent: InteractionResponseIntent
         switch choice.lowercased() {
-        case "approve", "yes", "y": result = try await actions.approve(pane: pane, prompt: prompt)
-        case "deny", "no", "n": result = try await actions.deny(pane: pane, prompt: prompt)
+        case "approve", "yes", "y": intent = .approve
+        case "deny", "no", "n":
+            intent = interaction.kind == .approval ? .deny : .cancel
         default:
-            guard let number = Int(choice), prompt.options.indices.contains(number - 1) else {
-                throw CLIError.usage("choice must be approve|deny|<option number 1...\(prompt.options.count)>")
+            guard let number = Int(choice), interaction.choices.indices.contains(number - 1) else {
+                throw CLIError.usage("choice must be approve|deny|<option number 1...\(interaction.choices.count)>")
             }
-            result = try await actions.answer(pane: pane, prompt: prompt, optionIndex: number - 1)
+            intent = .selectChoice(number - 1)
         }
-        report(result)
+        let provider = ScreenInteractionProvider(client: client)
+        let responder = InteractionResponder(provider: provider, actions: actions)
+        _ = try await responder.respond(InteractionResponseRequest(
+            paneID: pane, agentID: context.agentID,
+            paneRevision: context.revision,
+            expectedFingerprint: interaction.fingerprint, intent: intent))
+        report(.sent)
     }
 
     static func watch(_ client: HerdrClient) async throws {
@@ -150,15 +165,26 @@ enum CLI {
         }
     }
 
-    static func printPrompt(_ prompt: ClassifiedPrompt) {
-        if let title = prompt.questionTitle { print(title) } else { print(prompt.promptText) }
-        for (index, option) in prompt.options.enumerated() { print("  \(index + 1). \(option.label)") }
+    static func printPrompt(_ context: InteractionContext) {
+        let interaction = context.interaction
+        if let title = interaction.title { print(title) }
+        else if let body = interaction.body { print(body) }
+        for (index, option) in interaction.choices.enumerated() {
+            print("  \(index + 1). \(option.label)")
+        }
     }
-    static func printPromptJSON(_ prompt: ClassifiedPrompt, pane: String) {
-        printJSON(.object(["pane_id": .string(pane), "kind": .string(prompt.kind.rawValue),
-                           "question": prompt.questionTitle.map(JSONValue.string) ?? .null,
-                           "options": .array(prompt.options.map { .object(["label": .string($0.label), "keys": .array($0.keysToSend.map(JSONValue.string))]) }),
-                           "deny_keys": .array(prompt.denyKeys.map(JSONValue.string)), "text": .string(prompt.promptText)]))
+    static func printPromptJSON(_ context: InteractionContext, pane: String) {
+        let interaction = context.interaction
+        printJSON(.object([
+            "pane_id": .string(pane),
+            "kind": .string(interaction.kind.rawValue),
+            "title": interaction.title.map(JSONValue.string) ?? .null,
+            "body": interaction.body.map(JSONValue.string) ?? .null,
+            "provider": .string(interaction.evidence.providerID),
+            "options": .array(interaction.choices.map {
+                .object(["label": .string($0.label), "kind": .string($0.kind.rawValue)])
+            }),
+        ]))
     }
     static func report(_ result: ActionResult) {
         switch result {

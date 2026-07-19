@@ -24,44 +24,6 @@ final class MockGhostty: GhosttyActivating, @unchecked Sendable {
 
 @Suite("Action layer: intent → outbound JSON")
 struct ActionsTests {
-    let approval = ClassifiedPrompt(kind: .approval,
-        options: [PromptOption(label: "Yes", keysToSend: ["1", "enter"]), PromptOption(label: "No", keysToSend: ["2", "enter"])],
-        denyKeys: ["esc"], promptText: "Do you want to proceed?", isMarkdown: false)
-
-    @Test func approveSendsKeys() async throws {
-        let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
-        #expect(try await actions.approve(pane: "w1:p1", prompt: approval) == .sent)
-        #expect(client.recorded[0].method == "pane.send_keys")
-        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue) == ["1", "enter"])
-    }
-    @Test func denySendsEsc() async throws {
-        let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
-        _ = try await actions.deny(pane: "w1:p1", prompt: approval)
-        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue) == ["esc"])
-    }
-    @Test func answerNumbered() async throws {
-        let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
-        _ = try await actions.answer(pane: "w1:p1", prompt: approval, optionIndex: 1)
-        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue) == ["2", "enter"])
-    }
-    @Test func answerArrowNavigate() async throws {
-        let form = ClassifiedPrompt(kind: .question, options: [
-            PromptOption(label: "A", keysToSend: ["1", "enter"], isSelected: true),
-            PromptOption(label: "B", keysToSend: ["2", "enter"]), PromptOption(label: "C", keysToSend: ["3", "enter"])],
-            denyKeys: ["esc"], promptText: "Enter to select · Tab/Arrow keys to navigate", isMarkdown: false, answerStyle: .arrowNavigate)
-        let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
-        _ = try await actions.answer(pane: "w1:p1", prompt: form, optionIndex: 2)
-        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue) == ["down", "down", "enter"])
-    }
-    @Test func answerMultiSelect() async throws {
-        let form = ClassifiedPrompt(kind: .question, options: [
-            PromptOption(label: "A", keysToSend: ["1", "enter"], isSelected: true, isChecked: false),
-            PromptOption(label: "B", keysToSend: ["2", "enter"], isChecked: false)],
-            denyKeys: ["esc"], promptText: "Tab/Arrow keys to navigate", isMarkdown: false, answerStyle: .arrowNavigate, isMultiSelect: true)
-        let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
-        _ = try await actions.answer(pane: "w1:p1", prompt: form, optionIndex: 1)
-        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue) == ["down", "space"])
-    }
     @Test func replySendsTextThenEnter() async throws {
         let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
         _ = try await actions.reply(pane: "w1:p1", text: "do X instead")
@@ -72,10 +34,11 @@ struct ActionsTests {
         _ = try await actions.reply(pane: "w1:p1", text: "note", submit: false)
         #expect(client.recorded.map(\.method) == ["pane.send_text"])
     }
-    @Test func approveNoOptionsThrows() async {
+    @Test func rawKeysSendExactlyTheValidatedTokens() async throws {
         let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
-        await #expect(throws: ActionError.self) { try await actions.approve(pane: "w1:p1", prompt: .rawFallback("unknown")) }
-        #expect(client.recorded.isEmpty)
+        _ = try await actions.sendRawKeys(pane: "w1:p1", keys: ["down", "space"])
+        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue)
+            == ["down", "space"])
     }
     @Test func jumpOrdering() async throws {
         let client = MockClient(); let ghostty = MockGhostty(); let actions = Actions(client: client, ghostty: ghostty)

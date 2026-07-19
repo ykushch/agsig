@@ -28,21 +28,42 @@ final class NotchViewModel {
 
     let store = StateStore()
 
-    /// M5 source of truth: selection, interactions, drafts, errors, revisions,
+    /// Source of truth: selection, interactions, drafts, errors, revisions,
     /// reads, and response phases are all pane-keyed in this coordinator.
     private(set) var interactions: InteractionCoordinator
 
     var selectedPaneID: String? { interactions.selectedPaneID }
-    var selectedPrompt: ClassifiedPrompt? {
-        interactions.selectedState?.legacyPrompt
-    }
+    var selectedInteractionState: PaneInteractionState? { interactions.selectedState }
     var selectedInteraction: PendingInteraction? {
         interactions.selectedState?.interaction
     }
 
-    var selectedCodexInteraction: PendingInteraction? {
-        guard selectedInteraction?.evidence.providerID == "codex-screen" else { return nil }
-        return selectedInteraction
+    var attentionItems: [InteractionAttentionDisplayModel] {
+        let panes = store.panes.values.filter {
+            $0.agent != nil || store.derivedStatus(forPane: $0.paneID) != .unknown
+        }
+        let attentionRank = Dictionary(uniqueKeysWithValues:
+            interactions.attentionOrder.enumerated().map { ($0.element, $0.offset) })
+        return panes.map { pane in
+            let workspace = store.workspaces[pane.workspaceID]?.label ?? pane.workspaceID
+            return InteractionAttentionDisplayModel(
+                paneID: pane.paneID,
+                agentName: pane.displayAgent ?? pane.agent ?? "agent",
+                workspaceLabel: workspace,
+                status: store.derivedStatus(forPane: pane.paneID),
+                state: interactions.state(for: pane.paneID),
+                isSelected: pane.paneID == selectedPaneID)
+        }.sorted { left, right in
+            let leftRank = attentionRank[left.paneID]
+            let rightRank = attentionRank[right.paneID]
+            if let leftRank, let rightRank { return leftRank < rightRank }
+            if leftRank != nil { return true }
+            if rightRank != nil { return false }
+            if left.status.precedence != right.status.precedence {
+                return left.status.precedence > right.status.precedence
+            }
+            return left.paneID < right.paneID
+        }
     }
 
     /// True when the user manually opened the current pane from the list (vs. it
@@ -312,6 +333,21 @@ final class NotchViewModel {
         }
     }
 
+    func selectAdjacentPane(_ delta: Int) {
+        let items = attentionItems
+        guard !items.isEmpty else { return }
+        let current = selectedPaneID.flatMap { id in
+            items.firstIndex(where: { $0.paneID == id })
+        } ?? (delta > 0 ? -1 : 0)
+        let next = (current + delta + items.count) % items.count
+        let paneID = items[next].paneID
+        manuallyOpened = true
+        Task { @MainActor in
+            await interactions.select(paneID: paneID)
+            expand()
+        }
+    }
+
     func toggle() { isExpanded ? collapse() : expand() }
     func expand() { presentation = .expanded }
     func collapse() { presentation = .collapsed }
@@ -362,6 +398,14 @@ final class NotchViewModel {
             _ = try await actions.reply(pane: pane, text: text)
         }
     }
+    func confirmSelectedDraftReuse() {
+        guard let pane = selectedPaneID else { return }
+        _ = interactions.confirmDraftReuse(paneID: pane)
+    }
+    func discardSelectedDraft() {
+        guard let pane = selectedPaneID else { return }
+        interactions.discardDraft(paneID: pane)
+    }
     /// Explicit manual typing for partially supported normalized interactions.
     /// It does not press Enter; the user remains in control of submission.
     func typeTextWithoutSubmitSelected() {
@@ -371,6 +415,15 @@ final class NotchViewModel {
         let actions = actions
         runManualAction(paneID: pane) {
             _ = try await actions.reply(pane: pane, text: text, submit: false)
+        }
+    }
+    func sendManualTextSelected() {
+        guard let pane = selectedPaneID else { return }
+        let text = replyText
+        guard !text.isEmpty else { return }
+        let actions = actions
+        runManualAction(paneID: pane) {
+            _ = try await actions.reply(pane: pane, text: text)
         }
     }
     func submitTextOption(index: Int, text: String) {

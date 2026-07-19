@@ -37,7 +37,6 @@ public struct PaneInteractionState: Sendable, Equatable {
     public let paneID: String
     public var agentID: String?
     public var interaction: PendingInteraction?
-    public var legacyPrompt: ClassifiedPrompt?
     public var draft: PaneInteractionDraft
     public var lastRevision: UInt64?
     public var lastReadAt: Date?
@@ -48,7 +47,6 @@ public struct PaneInteractionState: Sendable, Equatable {
 
     public init(paneID: String, agentID: String? = nil,
                 interaction: PendingInteraction? = nil,
-                legacyPrompt: ClassifiedPrompt? = nil,
                 draft: PaneInteractionDraft = PaneInteractionDraft(),
                 lastRevision: UInt64? = nil, lastReadAt: Date? = nil,
                 lastRefreshReason: InteractionRefreshReason? = nil,
@@ -57,7 +55,6 @@ public struct PaneInteractionState: Sendable, Equatable {
         self.paneID = paneID
         self.agentID = agentID
         self.interaction = interaction
-        self.legacyPrompt = legacyPrompt
         self.draft = draft
         self.lastRevision = lastRevision
         self.lastReadAt = lastReadAt
@@ -111,7 +108,7 @@ public final class InteractionCoordinator {
     public private(set) var selectedPaneID: String?
     public private(set) var archivedDrafts: [String: PaneInteractionDraft] = [:]
 
-    @ObservationIgnored private let reader: any InteractionReading
+    @ObservationIgnored private let reader: any InteractionProviding
     @ObservationIgnored private let responder: any InteractionResponding
     @ObservationIgnored private let now: Clock
     @ObservationIgnored private let sleep: Sleeper
@@ -123,7 +120,7 @@ public final class InteractionCoordinator {
     @ObservationIgnored private var pollIndex = 0
     @ObservationIgnored private var nextBlockedSequence: UInt64 = 0
 
-    public init(reader: any InteractionReading,
+    public init(reader: any InteractionProviding,
                 responder: any InteractionResponding,
                 fallbackPollInterval: Int = 4,
                 revisionReliable: Bool = true,
@@ -145,7 +142,7 @@ public final class InteractionCoordinator {
 
     public var attentionOrder: [String] {
         let blocked = states.values.filter {
-            knownPanes[$0.paneID]?.isBlocked == true && $0.interaction != nil
+            knownPanes[$0.paneID]?.isBlocked == true
         }
         let selected = selectedPaneID.flatMap { id in
             blocked.contains(where: { $0.paneID == id }) ? id : nil
@@ -275,6 +272,11 @@ public final class InteractionCoordinator {
         return true
     }
 
+    public func discardDraft(paneID: String) {
+        clearDraft(paneID)
+        archivedDrafts.removeValue(forKey: paneID)
+    }
+
     @discardableResult
     public func respond(paneID: String,
                         intent: InteractionResponseIntent) async -> Bool {
@@ -299,8 +301,8 @@ public final class InteractionCoordinator {
             guard states[paneID]?.blockedSequence == generation else { return true }
             clearDraft(paneID)
             if let settled = result.settledInteraction {
-                install(interaction: settled, legacyPrompt: nil,
-                        paneID: paneID, reason: .responseSettled,
+                install(interaction: settled, paneID: paneID,
+                        reason: .responseSettled,
                         observedRevision: request.paneRevision)
             }
             setPhase(.idle, paneID: paneID)
@@ -308,8 +310,8 @@ public final class InteractionCoordinator {
             return true
         } catch let InteractionResponderError.staleInteraction(_, actual) {
             guard states[paneID]?.blockedSequence == generation else { return false }
-            install(interaction: actual, legacyPrompt: nil,
-                    paneID: paneID, reason: .responseSettled,
+            install(interaction: actual, paneID: paneID,
+                    reason: .responseSettled,
                     observedRevision: request.paneRevision)
             setPhase(.idle, paneID: paneID)
             _ = await refresh(paneID: paneID, reason: .responseSettled)
@@ -376,14 +378,12 @@ public final class InteractionCoordinator {
         states[paneID] = state
         let generation = state.blockedSequence
         do {
-            let read = try await reader.read(
+            let interaction = try await reader.interaction(
                 paneID: paneID, agentID: pane.agentID,
                 paneRevision: pane.revision)
             guard states[paneID]?.blockedSequence == generation,
                   states[paneID]?.phase == .reading else { return false }
-            install(interaction: read.interaction,
-                    legacyPrompt: read.legacyPrompt,
-                    paneID: paneID, reason: reason,
+            install(interaction: interaction, paneID: paneID, reason: reason,
                     observedRevision: pane.revision)
             setPhase(.idle, paneID: paneID)
             return true
@@ -399,31 +399,29 @@ public final class InteractionCoordinator {
                               original: PendingInteraction?,
                               generation: UInt64) async {
         guard settleAttempts > 0, let pane = knownPanes[paneID] else { return }
-        var previous: InteractionRead?
+        var previous: PendingInteraction?
         var stableCount = 0
         for _ in 0..<settleAttempts {
             await sleep(settleDelayNanoseconds)
             guard states[paneID]?.blockedSequence == generation,
                   states[paneID]?.phase == .settling else { return }
-            guard let read = try? await reader.read(
+            guard let interaction = try? await reader.interaction(
                 paneID: paneID, agentID: pane.agentID,
                 paneRevision: pane.revision) else { return }
-            install(interaction: read.interaction,
-                    legacyPrompt: read.legacyPrompt,
-                    paneID: paneID, reason: .manualSettled,
+            install(interaction: interaction, paneID: paneID,
+                    reason: .manualSettled,
                     observedRevision: pane.revision,
                     preservingPhase: true)
-            if read == previous { stableCount += 1 } else {
-                previous = read
+            if interaction == previous { stableCount += 1 } else {
+                previous = interaction
                 stableCount = 1
             }
-            if stableCount >= 2, read.interaction != original { return }
+            if stableCount >= 2, interaction != original { return }
         }
     }
 
     private func install(interaction: PendingInteraction,
-                         legacyPrompt: ClassifiedPrompt?, paneID: String,
-                         reason: InteractionRefreshReason,
+                         paneID: String, reason: InteractionRefreshReason,
                          observedRevision: UInt64?,
                          preservingPhase: Bool = false) {
         guard var state = states[paneID] else { return }
@@ -434,7 +432,6 @@ public final class InteractionCoordinator {
         }
         state.agentID = knownPanes[paneID]?.agentID ?? interaction.evidence.agentID
         state.interaction = interaction
-        if let legacyPrompt { state.legacyPrompt = legacyPrompt }
         state.lastRevision = observedRevision
         state.lastReadAt = now()
         state.lastRefreshReason = reason
