@@ -94,7 +94,13 @@ final class FakeHerdrServer: @unchecked Sendable {
             }
         }
         guard bindResult == 0 else { throw SocketError.connectFailed(path: path, errno: errno) }
-        guard listen(listenFd, 8) == 0 else { throw SocketError.connectFailed(path: path, errno: errno) }
+        // Some tests intentionally open 40 connections at once. A tiny backlog
+        // makes connect() intermittently fail with ECONNREFUSED before the
+        // detached accept loop gets scheduled, which tests scheduler timing
+        // instead of request correlation.
+        guard listen(listenFd, SOMAXCONN) == 0 else {
+            throw SocketError.connectFailed(path: path, errno: errno)
+        }
         let fd = listenFd
         let handler = self.handler
         let closeAfterEverything = self.closeAfterEverything
