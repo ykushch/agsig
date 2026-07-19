@@ -36,6 +36,22 @@ enum HotkeyModifier: String, CaseIterable, Identifiable {
     }
 }
 
+enum DisplayPlacement: String, CaseIterable, Identifiable {
+    case notchDisplay
+    case activeDisplay
+    case ghosttyDisplay
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .notchDisplay: "Notch display"
+        case .activeDisplay: "Active display"
+        case .ghosttyDisplay: "Display with Ghostty"
+        }
+    }
+}
+
 @Observable @MainActor
 final class Settings {
     private let defaults = UserDefaults.standard
@@ -47,6 +63,7 @@ final class Settings {
     var soundPack: String { didSet { defaults.set(soundPack, forKey: Keys.soundPack) } }
     var respectDND: Bool { didSet { defaults.set(respectDND, forKey: Keys.respectDND) } }
     var hotkeyModifier: HotkeyModifier { didSet { defaults.set(hotkeyModifier.rawValue, forKey: Keys.hotkeyModifier) } }
+    var displayPlacement: DisplayPlacement { didSet { defaults.set(displayPlacement.rawValue, forKey: Keys.displayPlacement) } }
     var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin); LoginItem.setEnabled(launchAtLogin) } }
 
     init() {
@@ -58,6 +75,8 @@ final class Settings {
         soundPack = defaults.string(forKey: Keys.soundPack) ?? "default"
         respectDND = defaults.object(forKey: Keys.respectDND) as? Bool ?? true
         hotkeyModifier = HotkeyModifier(rawValue: defaults.string(forKey: Keys.hotkeyModifier) ?? "") ?? .controlOption
+        displayPlacement = DisplayPlacement(
+            rawValue: defaults.string(forKey: Keys.displayPlacement) ?? "") ?? .notchDisplay
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
     }
 
@@ -78,6 +97,7 @@ final class Settings {
         static let soundPack = "soundPack"
         static let respectDND = "respectDND"
         static let hotkeyModifier = "hotkeyModifier"
+        static let displayPlacement = "displayPlacement"
         static let launchAtLogin = "launchAtLogin"
     }
 }

@@ -18,6 +18,12 @@ struct SettingsView: View {
             Picker("Hotkey modifier", selection: $settings.hotkeyModifier) {
                 ForEach(HotkeyModifier.allCases) { Text("\($0.displayName) (\($0.symbols))").tag($0) }
             }
+            Picker("Pill display", selection: $settings.displayPlacement) {
+                ForEach(DisplayPlacement.allCases) { Text($0.displayName).tag($0) }
+            }
+            Text(displayPlacementHelp)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Toggle("Launch at login", isOn: $settings.launchAtLogin)
             HStack {
                 Text("Socket override")
@@ -27,6 +33,17 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 440, height: 380)
+        .frame(width: 440, height: 440)
+    }
+
+    private var displayPlacementHelp: String {
+        switch settings.displayPlacement {
+        case .notchDisplay:
+            "Uses the built-in notch when available. On non-notch Macs, the pill floats at the top center."
+        case .activeDisplay:
+            "Follows the display with keyboard focus. Display changes settle for a moment before the pill moves."
+        case .ghosttyDisplay:
+            "Uses the display containing the frontmost visible Ghostty window, falling back to the active display."
+        }
     }
 }

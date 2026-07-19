@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.settings = settings
         model.soundEngine = sound
 
-        let controller = NotchWindowController(viewModel: model)
+        let controller = NotchWindowController(viewModel: model, settings: settings)
         controller.show()
         model.start()
 
