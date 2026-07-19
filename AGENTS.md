@@ -39,12 +39,13 @@ HerdrClient.events()   → ONE long-lived connection, reconnects with backoff
     ▼
 StateStore (@MainActor @Observable)  → hydrate(snapshot) then apply(event)
     │
-    ├─→ ScreenAdapterRegistry  (exact agent ID → PendingInteraction)
-    │     ├─ ClaudeScreenAdapter
-    │     ├─ CodexScreenAdapter
-    │     └─ GenericScreenAdapter (safe raw fallback)
+    ├─→ InteractionCoordinator (pane-keyed cache, drafts, refresh + response phases)
+    │     ├─ ScreenInteractionProvider → ScreenAdapterRegistry
+    │     │     ├─ ClaudeScreenAdapter
+    │     │     ├─ CodexScreenAdapter
+    │     │     └─ GenericScreenAdapter (safe raw fallback)
+    │     └─ InteractionResponder (fresh-read safety boundary + pane-scoped settle)
     ├─→ InteractionDisplayModel + InteractionResponsePlanner (pure; no transport)
-    ├─→ ScreenInteractionProvider → InteractionResponder (fresh-read safety boundary)
     ├─→ PromptClassifier  (temporary ClassifiedPrompt compatibility facade)
     └─→ Actions           (approve/deny/answer/reply/jump → send_keys/send_text/focus + Ghostty raise)
     │
@@ -69,6 +70,11 @@ NotchApp UI (NSPanel + SwiftUI)  /  notchctl CLI
   `StateStore.reconcile(_:)` (the primary status path); the event stream is only an
   accelerator + new-pane detector. If you ever see the UI "frozen," suspect the
   event assumption — verify with `notchctl list` (pure snapshot path).
+- **Interactions are pane-scoped.** `InteractionCoordinator` keeps blocked
+  interactions, drafts, errors, read revisions, and response/settle phases keyed
+  by pane ID. A busy pane never suppresses another pane's refresh. Selected panes
+  refresh promptly; non-selected panes use revision changes plus a fourth-poll
+  fallback when revision evidence is missing or explicitly untrusted.
 - **herdr replays `pane_created` for long-closed panes on every subscribe.** An
   unfamiliar `pane_id` in an event does not mean a new pane exists — confirm against
   a fresh snapshot before resubscribing, or it thrashes.
@@ -94,5 +100,6 @@ NotchApp UI (NSPanel + SwiftUI)  /  notchctl CLI
   `notchctl capture` and keep its provenance metadata beside the fixture.
 - **Decode-tolerant models.** Unknown JSON fields are ignored; unknown enum values
   map to `.unknown` rather than throwing. A decode failure on unknown input is a bug.
-- Swift 6 strict concurrency: UI + `StateStore` are `@MainActor`. A CLI/loop that
-  touches the store should live inside one `@MainActor` container (see `notchctl`).
+- Swift 6 strict concurrency: UI, `StateStore`, and `InteractionCoordinator` are
+  `@MainActor`. A CLI/loop that touches them should live inside one `@MainActor`
+  container (see `notchctl`).

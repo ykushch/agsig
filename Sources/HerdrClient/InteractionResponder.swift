@@ -8,12 +8,39 @@ public protocol InteractionProviding: Sendable {
                      paneRevision: UInt64?) async throws -> PendingInteraction
 }
 
+/// Paired normalized + temporary legacy representation from one terminal read.
+/// M6 removes the legacy field when the remaining Claude UI migrates.
+public struct InteractionRead: Sendable, Equatable {
+    public let interaction: PendingInteraction
+    public let legacyPrompt: ClassifiedPrompt
+
+    public init(interaction: PendingInteraction,
+                legacyPrompt: ClassifiedPrompt) {
+        self.interaction = interaction
+        self.legacyPrompt = legacyPrompt
+    }
+}
+
+public protocol InteractionReading: InteractionProviding {
+    func read(paneID: String, agentID: String?,
+              paneRevision: UInt64?) async throws -> InteractionRead
+}
+
+extension InteractionReading {
+    public func interaction(paneID: String, agentID: String?,
+                            paneRevision: UInt64?) async throws
+        -> PendingInteraction {
+        try await read(paneID: paneID, agentID: agentID,
+                       paneRevision: paneRevision).interaction
+    }
+}
+
 public enum InteractionProviderError: Error, Sendable, Equatable {
     case unreadablePane(paneID: String)
 }
 
 /// Re-reads both herdr pane views and runs the exact-agent screen adapter.
-public struct ScreenInteractionProvider: InteractionProviding, Sendable {
+public struct ScreenInteractionProvider: InteractionReading, Sendable {
     private let client: any RequestSending
     private let classifier: PromptClassifier
 
@@ -23,16 +50,19 @@ public struct ScreenInteractionProvider: InteractionProviding, Sendable {
         self.classifier = classifier
     }
 
-    public func interaction(paneID: String, agentID: String?,
-                            paneRevision: UInt64?) async throws -> PendingInteraction {
+    public func read(paneID: String, agentID: String?,
+                     paneRevision: UInt64?) async throws -> InteractionRead {
         let detection = try await read(paneID: paneID, source: .detection)
         let visible = try? await read(
             paneID: paneID, source: .visible, format: "ansi", stripAnsi: false)
         let currentTab = visible.flatMap(Self.currentTabLabel)
-        return classifier.classifyInteraction(
+        let interaction = classifier.classifyInteraction(
             paneID: paneID, agent: agentID, text: detection,
             visibleANSIText: visible, paneRevision: paneRevision,
             currentTabLabel: currentTab)
+        let legacy = classifier.classify(
+            agent: agentID, text: detection, currentTabLabel: currentTab)
+        return InteractionRead(interaction: interaction, legacyPrompt: legacy)
     }
 
     private func read(paneID: String, source: ReadSource, format: String? = nil,
@@ -116,8 +146,24 @@ extension InteractionResponderError: LocalizedError {
 }
 
 public protocol InteractionResponding: Sendable {
-    func respond(_ request: InteractionResponseRequest) async throws
+    func respond(
+        _ request: InteractionResponseRequest,
+        onPhase: @escaping @Sendable (InteractionResponsePhase) async -> Void
+    ) async throws
         -> InteractionResponseResult
+}
+
+public enum InteractionResponsePhase: Sendable, Equatable {
+    case revalidating
+    case sending
+    case settling
+}
+
+extension InteractionResponding {
+    public func respond(_ request: InteractionResponseRequest) async throws
+        -> InteractionResponseResult {
+        try await respond(request, onPhase: { _ in })
+    }
 }
 
 /// Safety boundary for structured interaction responses.
@@ -149,8 +195,12 @@ public struct InteractionResponder: InteractionResponding, Sendable {
         self.sleep = sleep
     }
 
-    public func respond(_ request: InteractionResponseRequest) async throws
+    public func respond(
+        _ request: InteractionResponseRequest,
+        onPhase: @escaping @Sendable (InteractionResponsePhase) async -> Void
+    ) async throws
         -> InteractionResponseResult {
+        await onPhase(.revalidating)
         let fresh = try await provider.interaction(
             paneID: request.paneID, agentID: request.agentID,
             paneRevision: request.paneRevision)
@@ -160,6 +210,7 @@ public struct InteractionResponder: InteractionResponding, Sendable {
         }
         try validate(request.intent, for: fresh.kind)
         let plan = try planner.plan(request.intent, for: fresh)
+        await onPhase(.sending)
         for operation in plan.operations {
             switch operation {
             case let .sendKeys(keys):
@@ -174,6 +225,7 @@ public struct InteractionResponder: InteractionResponding, Sendable {
             return InteractionResponseResult(
                 validatedInteraction: fresh, settledInteraction: fresh)
         }
+        await onPhase(.settling)
         let settled = await settle(after: fresh, request: request)
         return InteractionResponseResult(
             validatedInteraction: fresh, settledInteraction: settled)

@@ -19,6 +19,15 @@ public enum ActionError: Error, Sendable {
     case noKeysForOption
 }
 
+extension ActionError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case let .keysRejected(message): message
+        case .noKeysForOption: "No validated keys are available for that option."
+        }
+    }
+}
+
 /// Translates user intents into herdr calls + the Ghostty raise.
 ///
 /// **Never auto-answers.** Every method is user-initiated; there are no timers

@@ -13,9 +13,9 @@ enum NotchPresentation: Sendable {
 /// Observable view-model backing the notch UI (specs 08/09).
 ///
 /// Single source of truth for what the SwiftUI content shows. Owns the herdr
-/// `StateStore`, `Actions`, and `PromptClassifier`, hydrates from a snapshot on
-/// launch, consumes the live event stream, auto-expands when a pane blocks, and
-/// caches the classified prompt for the currently-surfaced blocked pane.
+/// `StateStore`, `Actions`, and pane-keyed `InteractionCoordinator`, hydrates
+/// from a snapshot on launch, consumes the live event stream, and auto-expands
+/// when a pane blocks without allowing one pane to overwrite another.
 @Observable
 @MainActor
 final class NotchViewModel {
@@ -28,17 +28,17 @@ final class NotchViewModel {
 
     let store = StateStore()
 
-    /// The pane currently surfaced in the expanded card (a blocked pane, or the
-    /// one the user opened). nil when nothing needs attention.
-    var selectedPaneID: String?
+    /// M5 source of truth: selection, interactions, drafts, errors, revisions,
+    /// reads, and response phases are all pane-keyed in this coordinator.
+    private(set) var interactions: InteractionCoordinator
 
-    /// Classified prompt for `selectedPaneID`, if it's blocked and readable. nil
-    /// when the selected pane is idle/working (nothing to answer).
-    var selectedPrompt: ClassifiedPrompt?
-
-    /// Normalized prompt produced by the exact-agent adapter. M3 presents Codex
-    /// through this model; structured execution remains deferred to M4.
-    var selectedInteraction: PendingInteraction?
+    var selectedPaneID: String? { interactions.selectedPaneID }
+    var selectedPrompt: ClassifiedPrompt? {
+        interactions.selectedState?.legacyPrompt
+    }
+    var selectedInteraction: PendingInteraction? {
+        interactions.selectedState?.interaction
+    }
 
     var selectedCodexInteraction: PendingInteraction? {
         guard selectedInteraction?.evidence.providerID == "codex-screen" else { return nil }
@@ -56,11 +56,29 @@ final class NotchViewModel {
         return store.derivedStatus(forPane: id)
     }
 
-    /// Free-text field contents for the reply / raw-key box.
-    var replyText: String = ""
+    /// Per-pane draft projection. Switching panes never overwrites another draft.
+    var replyText: String {
+        get {
+            guard let pane = selectedPaneID else { return "" }
+            return interactions.draftText(for: pane)
+        }
+        set {
+            guard let pane = selectedPaneID else { return }
+            _ = interactions.setDraftText(newValue, paneID: pane)
+        }
+    }
 
-    /// Last error surfaced by an action (shown as a toast; cleared on next action).
-    var lastError: String?
+    private var globalError: String?
+    var lastError: String? {
+        get { interactions.selectedState?.error ?? globalError }
+        set {
+            if let pane = selectedPaneID {
+                interactions.setError(newValue, paneID: pane)
+            } else {
+                globalError = newValue
+            }
+        }
+    }
 
     /// True once the accessibility permission needed for global hotkeys is known
     /// to be missing (spec 09 surfaces a hint instead of silently failing).
@@ -96,21 +114,19 @@ final class NotchViewModel {
     // MARK: Dependencies
 
     @ObservationIgnored private var client: HerdrClient
-    @ObservationIgnored private let classifier = PromptClassifier()
-    @ObservationIgnored private lazy var actions = Actions(client: client)
-    @ObservationIgnored private lazy var interactionProvider =
-        ScreenInteractionProvider(client: client, classifier: classifier)
-    @ObservationIgnored private lazy var interactionResponder = InteractionResponder(
-        provider: interactionProvider, actions: actions)
-    @ObservationIgnored private var draftStore = InteractionDraftStore()
+    @ObservationIgnored private var actions: Actions
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
-    /// True while an action (send keys + settle) is in flight; serializes actions
-    /// so overlapping key-sends can't misread each other's redraw frames.
-    private(set) var isActing = false
+    var isActing: Bool { interactions.selectedState?.phase.isBusy == true }
 
     init(client: HerdrClient = HerdrClient()) {
         self.client = client
+        let actions = Actions(client: client)
+        let provider = ScreenInteractionProvider(client: client)
+        self.actions = actions
+        self.interactions = InteractionCoordinator(
+            reader: provider,
+            responder: InteractionResponder(provider: provider, actions: actions))
     }
 
     /// Re-point the client at a new socket (session switch, spec 10c) and restart
@@ -119,15 +135,12 @@ final class NotchViewModel {
         stop()
         client = HerdrClient(socketPath: socketPath)
         actions = Actions(client: client)
-        interactionProvider = ScreenInteractionProvider(
-            client: client, classifier: classifier)
-        interactionResponder = InteractionResponder(
-            provider: interactionProvider, actions: actions)
-        draftStore = InteractionDraftStore()
+        let provider = ScreenInteractionProvider(client: client)
+        interactions = InteractionCoordinator(
+            reader: provider,
+            responder: InteractionResponder(provider: provider, actions: actions))
         connection = .connecting
-        selectedPaneID = nil
-        selectedPrompt = nil
-        selectedInteraction = nil
+        globalError = nil
         start()
     }
 
@@ -185,21 +198,24 @@ final class NotchViewModel {
             let snapValue = result["snapshot"] ?? result
             let snapshot = try snapValue.decode(Snapshot.self)
             connection = .connected
+            globalError = nil
+            let selectedBefore = selectedPaneID
             let newlyBlocked = store.reconcile(snapshot)
-            // Don't mutate the surfaced card while an action is settling — the
-            // action owns the card during that window (avoids clobbering its
-            // fresh read or clearing it on a transient non-blocked frame).
-            guard !isActing else { return }
-            for pane in newlyBlocked {
+            _ = await reconcileInteractions(newlyBlocked: newlyBlocked)
+            for _ in newlyBlocked {
                 soundEngine?.play(.blocked)
-                if settings?.autoExpandOnBlocked ?? true {
-                    await surfaceBlockedPane(pane)
-                }
+            }
+            if !newlyBlocked.isEmpty,
+               settings?.autoExpandOnBlocked ?? true,
+               let target = interactions.attentionOrder.first {
+                await surfaceBlockedPane(target)
             }
             // If an AUTO-surfaced blocked pane resolved (no longer blocked), clear
             // the card. But leave a MANUALLY-opened pane alone — the user opened it
             // deliberately (e.g. to read/jump an idle agent) and it should stay
             // until they close it.
+            synchronizePresentationAfterInteractionReconcile(
+                selectedBefore: selectedBefore)
             if let sel = selectedPaneID, !manuallyOpened,
                store.derivedStatus(forPane: sel) != .blocked {
                 clearSelection()
@@ -223,10 +239,19 @@ final class NotchViewModel {
         }
         let wasDone = event.paneID.map { store.finishedUnseen.contains($0) } ?? false
         let didBlock = store.apply(event)
-        if didBlock, let pane = event.paneID {
+        if didBlock, event.paneID != nil {
             soundEngine?.play(.blocked)
-            if settings?.autoExpandOnBlocked ?? true {
-                Task { @MainActor in await self.surfaceBlockedPane(pane) }
+        }
+        Task { @MainActor in
+            let selectedBefore = self.selectedPaneID
+            _ = await self.reconcileInteractions(
+                newlyBlocked: didBlock ? event.paneID.map { [$0] } ?? [] : [],
+                countsTowardFallbackCadence: false)
+            self.synchronizePresentationAfterInteractionReconcile(
+                selectedBefore: selectedBefore)
+            if didBlock, self.settings?.autoExpandOnBlocked ?? true,
+               let target = self.interactions.attentionOrder.first {
+                await self.surfaceBlockedPane(target)
             }
         }
         // A pane that just became finished-unseen → play the done sound.
@@ -234,12 +259,8 @@ final class NotchViewModel {
             soundEngine?.play(.done)
             if settings?.autoExpandOnDone ?? false { expand() }
         }
-        // If the surfaced pane left blocked, clear the card.
-        if let sel = selectedPaneID,
-           store.derivedStatus(forPane: sel) != .blocked,
-           event.paneID == sel {
-            clearSelection()
-        }
+        // Coordinator reconciliation above removes resolved/exited interaction
+        // state without disturbing any other pane's response or refresh.
     }
 
     func stop() {
@@ -261,85 +282,33 @@ final class NotchViewModel {
 
     /// Read + classify a blocked pane and surface it in an auto-expanded card.
     func surfaceBlockedPane(_ paneID: String) async {
-        let prompts = await readPrompts(paneID)
-        selectedPrompt = prompts.legacy
-        selectedInteraction = prompts.interaction
-        draftStore.observe(prompts.interaction)
-        selectedPaneID = paneID
-        replyText = ""
+        await interactions.select(paneID: paneID)
         expand()
     }
 
-    private struct ReadPrompts {
-        let legacy: ClassifiedPrompt
-        let interaction: PendingInteraction
-    }
-
-    /// Read both herdr views once, then derive the temporary legacy prompt and
-    /// normalized interaction from the same evidence.
-    private func readPrompts(_ paneID: String) async -> ReadPrompts {
-        let agent = store.panes[paneID]?.agent
-        do {
-            let params = try PaneReadParams(paneID: paneID, source: .detection).asJSONValue()
-            let result = try await client.request("pane.read", params: params)
-            let text = (try? result["read"]?.decode(PaneReadResult.self))?.text ?? ""
-            let visibleText = await visiblePaneText(paneID)
-            let currentTab = visibleText.flatMap(currentTabLabel)
-            let classified = classifier.classify(agent: agent, text: text, currentTabLabel: currentTab)
-            let interaction = classifier.classifyInteraction(
-                paneID: paneID, agent: agent, text: text,
-                visibleANSIText: visibleText,
-                paneRevision: store.panes[paneID]?.revision,
-                currentTabLabel: currentTab)
-            if ProcessInfo.processInfo.environment["NOTCH_DEBUG_PROMPT"] == "1" {
-                print("[notch] pane=\(paneID) agent=\(agent ?? "nil") "
-                    + "provider=\(interaction.evidence.providerID) kind=\(interaction.kind) "
-                    + "choices=\(interaction.choices.count) tab=\(currentTab ?? "nil")")
-            }
-            return ReadPrompts(legacy: classified, interaction: interaction)
-        } catch {
-            let text = "(couldn't read prompt: \(error))"
-            return ReadPrompts(
-                legacy: .rawFallback(text),
-                interaction: classifier.classifyInteraction(
-                    paneID: paneID, agent: agent, text: text,
-                    paneRevision: store.panes[paneID]?.revision))
-        }
-    }
-
-    private func visiblePaneText(_ paneID: String) async -> String? {
-        guard let params = try? PaneReadParams(paneID: paneID, source: .visible,
-                                                format: "ansi", stripAnsi: false).asJSONValue(),
-              let result = try? await client.request("pane.read", params: params),
-              let text = (try? result["read"]?.decode(PaneReadResult.self))?.text else { return nil }
-        return text
-    }
-
-    private func currentTabLabel(in text: String) -> String? {
-        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
-        for line in normalized.split(separator: "\n", omittingEmptySubsequences: false).reversed() {
-            let value = String(line)
-            guard value.contains("Submit"), value.contains("☒") || value.contains("□") || value.contains("☑") else { continue }
-            guard !PromptClassifier.parseWizardSteps(value).isEmpty else { continue }
-            if let label = PromptClassifier.highlightedTabLabel(in: value) { return label }
-        }
-        return nil
+    private func reconcileInteractions(
+        newlyBlocked: [String],
+        countsTowardFallbackCadence: Bool = true
+    ) async
+        -> InteractionReconcileResult {
+        await interactions.reconcile(
+            panes: store.panes.values.map { pane in
+                InteractionPaneSnapshot(
+                    paneID: pane.paneID, agentID: pane.agent,
+                    revision: pane.revision,
+                    isBlocked: store.derivedStatus(forPane: pane.paneID) == .blocked)
+            },
+            newlyBlockedPaneIDs: newlyBlocked,
+            preserveSelectedResolvedPane: manuallyOpened,
+            countsTowardFallbackCadence: countsTowardFallbackCadence)
     }
 
     func selectPane(_ paneID: String) {
         if selectedPaneID == paneID { clearSelection(); return }
         manuallyOpened = true
         Task { @MainActor in
-            if store.derivedStatus(forPane: paneID) == .blocked {
-                let prompts = await readPrompts(paneID)
-                selectedPrompt = prompts.legacy
-                selectedInteraction = prompts.interaction
-                draftStore.observe(prompts.interaction)
-            } else {
-                selectedPrompt = nil
-                selectedInteraction = nil
-            }
-            selectedPaneID = paneID; replyText = ""; expand()
+            await interactions.select(paneID: paneID)
+            expand()
         }
     }
 
@@ -347,12 +316,22 @@ final class NotchViewModel {
     func expand() { presentation = .expanded }
     func collapse() { presentation = .collapsed }
     func clearSelection() {
-        selectedPaneID = nil
-        selectedPrompt = nil
-        selectedInteraction = nil
-        replyText = ""
+        interactions.clearSelection()
+        replySelectionDidClear()
+    }
+
+    private func replySelectionDidClear() {
         manuallyOpened = false
         collapse()
+    }
+
+    private func synchronizePresentationAfterInteractionReconcile(
+        selectedBefore: String?
+    ) {
+        guard let selectedBefore, selectedPaneID == nil else { return }
+        if store.panes[selectedBefore] == nil || !manuallyOpened {
+            replySelectionDidClear()
+        }
     }
 
     func approveSelected() {
@@ -378,7 +357,10 @@ final class NotchViewModel {
             respondToSelectedInteraction(.submitText(text))
             return
         }
-        runManualAction { try await self.actions.reply(pane: pane, text: text) }
+        let actions = actions
+        runManualAction(paneID: pane) {
+            _ = try await actions.reply(pane: pane, text: text)
+        }
     }
     /// Explicit manual typing for partially supported normalized interactions.
     /// It does not press Enter; the user remains in control of submission.
@@ -386,7 +368,10 @@ final class NotchViewModel {
         guard let pane = selectedPaneID else { return }
         let text = replyText
         guard !text.isEmpty else { return }
-        runManualAction { try await self.actions.reply(pane: pane, text: text, submit: false) }
+        let actions = actions
+        runManualAction(paneID: pane) {
+            _ = try await actions.reply(pane: pane, text: text, submit: false)
+        }
     }
     func submitTextOption(index: Int, text: String) {
         guard !text.isEmpty else { return }
@@ -405,99 +390,37 @@ final class NotchViewModel {
         sendRawKeys(pane: pane, keys: keys)
     }
     private func sendRawKeys(pane: String, keys: [String]) {
-        runManualAction { try await self.actions.sendRawKeys(pane: pane, keys: keys) }
+        let actions = actions
+        runManualAction(paneID: pane) {
+            _ = try await actions.sendRawKeys(pane: pane, keys: keys)
+        }
     }
     func jumpSelected() { if let pane = selectedPaneID { jump(pane) } }
     func jump(_ pane: String) {
         let info = store.panes[pane]
         Task { @MainActor in
             do { _ = try await actions.jump(pane: pane, workspaceID: info?.workspaceID, tabID: info?.tabID) }
-            catch { lastError = String(describing: error) }
+            catch { interactions.setError(String(describing: error), paneID: pane) }
         }
     }
 
     /// Manual/raw terminal actions deliberately remain available for fallback
     /// screens. Structured controls use `respondToSelectedInteraction` instead.
     private func runManualAction(
-        _ body: @escaping @MainActor () async throws -> ActionResult) {
-        guard !isActing else { return }
-        isActing = true; lastError = nil
+        paneID: String,
+        _ body: @escaping @Sendable () async throws -> Void) {
         Task { @MainActor in
-            defer { isActing = false }
-            do {
-                _ = try await body()
-                replyText = ""
-                await refreshPromptAfterManualAction()
-            } catch let ActionError.keysRejected(message) { lastError = message }
-            catch { lastError = String(describing: error) }
-        }
-    }
-
-    private func refreshPromptAfterManualAction() async {
-        guard let pane = selectedPaneID else { return }
-        let previous = selectedPrompt
-        var stable: ClassifiedPrompt?
-        var count = 0
-        for _ in 0..<8 {
-            try? await Task.sleep(nanoseconds: 160_000_000)
-            guard selectedPaneID == pane else { return }
-            if store.derivedStatus(forPane: pane) != .blocked { clearSelection(); return }
-            let prompts = await readPrompts(pane)
-            let next = prompts.legacy
-            selectedPrompt = next
-            selectedInteraction = prompts.interaction
-            draftStore.observe(prompts.interaction)
-            if next == stable { count += 1 } else { stable = next; count = 1 }
-            if count >= 2, next != previous { return }
+            _ = await interactions.performManualAction(
+                paneID: paneID, operation: body)
         }
     }
 
     /// The only entry point for structured UI actions. The responder re-reads
     /// and validates stable identity before it can execute any operation.
     func respondToSelectedInteraction(_ intent: InteractionResponseIntent) {
-        guard !isActing, let pane = selectedPaneID,
-              let interaction = selectedInteraction else { return }
-        if !replyText.isEmpty {
-            _ = draftStore.setText(replyText, for: interaction)
-        }
-        let request = InteractionResponseRequest(
-            paneID: pane, agentID: store.panes[pane]?.agent,
-            paneRevision: store.panes[pane]?.revision,
-            expectedFingerprint: interaction.fingerprint, intent: intent)
-        isActing = true
-        lastError = nil
+        guard let pane = selectedPaneID else { return }
         Task { @MainActor in
-            defer { isActing = false }
-            do {
-                let result = try await interactionResponder.respond(request)
-                guard selectedPaneID == pane else { return }
-                if let settled = result.settledInteraction {
-                    selectedInteraction = settled
-                    draftStore.observe(settled)
-                }
-                // One final paired read updates the temporary Claude legacy view;
-                // settling and all safety decisions already happened in responder.
-                let prompts = await readPrompts(pane)
-                guard selectedPaneID == pane else { return }
-                selectedPrompt = prompts.legacy
-                selectedInteraction = prompts.interaction
-                draftStore.observe(prompts.interaction)
-                replyText = ""
-            } catch let InteractionResponderError.staleInteraction(_, actual) {
-                guard selectedPaneID == pane else { return }
-                selectedInteraction = actual
-                draftStore.observe(actual)
-                if let text = actual.evidence.capturedText {
-                    selectedPrompt = classifier.classify(
-                        agent: actual.evidence.agentID, text: text)
-                }
-                lastError = "This question changed before selection. Nothing was sent; review the refreshed options."
-            } catch let ActionError.keysRejected(message) {
-                lastError = message
-            } catch {
-                lastError = (error as? LocalizedError)?.errorDescription
-                    ?? String(describing: error)
-            }
+            _ = await interactions.respond(paneID: pane, intent: intent)
         }
     }
 }
