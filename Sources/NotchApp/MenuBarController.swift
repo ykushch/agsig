@@ -27,6 +27,11 @@ final class MenuBarController: NSObject {
         let accessibility = NSMenuItem(title: "Open Accessibility Settings…", action: #selector(openAccessibility), keyEquivalent: "")
         accessibility.target = self; menu.addItem(accessibility)
         menu.addItem(.separator())
+        let provenance = NSMenuItem(title: Self.buildProvenanceTitle(), action: nil, keyEquivalent: "")
+        provenance.isEnabled = false
+        provenance.toolTip = Self.buildSourcePath()
+        menu.addItem(provenance)
+        menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit Notch Agent", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
         item.menu = menu
@@ -67,5 +72,17 @@ final class MenuBarController: NSObject {
             var directory: ObjCBool = false
             return FileManager.default.fileExists(atPath: (base as NSString).appendingPathComponent(name), isDirectory: &directory) && directory.boolValue
         }.sorted()
+    }
+
+    private static func buildProvenanceTitle(bundle: Bundle = .main) -> String {
+        let revision = bundle.object(forInfoDictionaryKey: "NotchAgentGitRevision") as? String
+            ?? "development"
+        let dirty = bundle.object(forInfoDictionaryKey: "NotchAgentGitDirty") as? Bool
+            ?? false
+        return "Build \(revision)\(dirty ? "-dirty" : "")"
+    }
+
+    private static func buildSourcePath(bundle: Bundle = .main) -> String? {
+        bundle.object(forInfoDictionaryKey: "NotchAgentSourcePath") as? String
     }
 }

@@ -12,6 +12,17 @@ CONFIG="${1:-release}"
 APP="NotchApp"
 BUNDLE_ID="dev.notchagent.NotchApp"
 OUT="build/${APP}.app"
+GIT_REVISION="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+BUILD_NUMBER="$(date -u +%Y%m%d%H%M%S)"
+SOURCE_PATH="$(pwd)"
+if [[ -n "$(git status --porcelain --untracked-files=normal 2>/dev/null)" ]]; then
+    GIT_DIRTY="true"
+    GIT_SUFFIX="-dirty"
+else
+    GIT_DIRTY="false"
+    GIT_SUFFIX=""
+fi
 
 echo "Building ($CONFIG)"
 swift build -c "$CONFIG" --product "$APP"
@@ -30,7 +41,7 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key>                <string>${APP}</string>
     <key>CFBundleDisplayName</key>         <string>Notch Agent</string>
     <key>CFBundleIdentifier</key>          <string>${BUNDLE_ID}</string>
-    <key>CFBundleVersion</key>             <string>1</string>
+    <key>CFBundleVersion</key>             <string>${BUILD_NUMBER}</string>
     <key>CFBundleShortVersionString</key><string>0.1</string>
     <key>CFBundlePackageType</key>         <string>APPL</string>
     <key>CFBundleExecutable</key>          <string>${APP}</string>
@@ -42,6 +53,13 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Keep enough provenance in the signed bundle to distinguish two checkouts with
+# the same bundle identifier. This is intentionally visible in the menu too.
+plutil -insert NotchAgentGitRevision -string "$GIT_REVISION" "$OUT/Contents/Info.plist"
+plutil -insert NotchAgentGitDirty -bool "$GIT_DIRTY" "$OUT/Contents/Info.plist"
+plutil -insert NotchAgentBuildDate -string "$BUILD_DATE" "$OUT/Contents/Info.plist"
+plutil -insert NotchAgentSourcePath -string "$SOURCE_PATH" "$OUT/Contents/Info.plist"
+
 # Ad-hoc code signing gives the bundle a stable identity for TCC across runs.
 # (A real Developer ID cert would be needed for distribution; ad-hoc is fine for
 # personal use — the Accessibility grant sticks to this signed bundle.)
@@ -49,6 +67,8 @@ echo "Ad-hoc signing"
 codesign --force --deep --sign - "$OUT"
 
 echo "Done: $OUT"
+echo "Build: ${GIT_REVISION}${GIT_SUFFIX} at $BUILD_DATE"
+echo "Source: $SOURCE_PATH"
 echo
 echo "Launch it (NOT 'swift run') so Accessibility can track it:"
 echo "  open $OUT"

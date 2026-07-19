@@ -44,7 +44,11 @@ struct PlaceholderNotchView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             if model.connection == .unavailable { herdrUnavailable }
-            if let pane = model.selectedPaneID, let prompt = model.selectedPrompt {
+            if let pane = model.selectedPaneID,
+               let interaction = model.selectedCodexInteraction {
+                codexInteractionSection(pane: pane, interaction: interaction)
+                Divider().overlay(.white.opacity(0.15))
+            } else if let pane = model.selectedPaneID, let prompt = model.selectedPrompt {
                 promptSection(pane: pane, prompt: prompt)
                 Divider().overlay(.white.opacity(0.15))
             } else if let pane = model.selectedPaneID {
@@ -122,6 +126,18 @@ struct PlaceholderNotchView: View {
     }
 
     // MARK: Prompt section
+
+    private func codexInteractionSection(pane: String,
+                                         interaction: PendingInteraction) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            cardHeader(pane: pane)
+            CodexInteractionView(
+                interaction: interaction,
+                manualText: $model.replyText,
+                typeTextWithoutSubmit: model.typeTextWithoutSubmitSelected)
+            manualDriveRow()
+        }
+    }
 
     @ViewBuilder
     private func promptSection(pane: String, prompt: ClassifiedPrompt) -> some View {

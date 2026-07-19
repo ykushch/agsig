@@ -36,6 +36,15 @@ final class NotchViewModel {
     /// when the selected pane is idle/working (nothing to answer).
     var selectedPrompt: ClassifiedPrompt?
 
+    /// Normalized prompt produced by the exact-agent adapter. M3 presents Codex
+    /// through this model; structured execution remains deferred to M4.
+    var selectedInteraction: PendingInteraction?
+
+    var selectedCodexInteraction: PendingInteraction? {
+        guard selectedInteraction?.evidence.providerID == "codex-screen" else { return nil }
+        return selectedInteraction
+    }
+
     /// True when the user manually opened the current pane from the list (vs. it
     /// auto-surfacing on a block). A manually-opened idle pane must NOT be
     /// auto-closed by the poll loop just because it isn't blocked.
@@ -108,6 +117,7 @@ final class NotchViewModel {
         connection = .connecting
         selectedPaneID = nil
         selectedPrompt = nil
+        selectedInteraction = nil
         start()
     }
 
@@ -241,38 +251,60 @@ final class NotchViewModel {
 
     /// Read + classify a blocked pane and surface it in an auto-expanded card.
     func surfaceBlockedPane(_ paneID: String) async {
-        selectedPrompt = await readAndClassify(paneID)
+        let prompts = await readPrompts(paneID)
+        selectedPrompt = prompts.legacy
+        selectedInteraction = prompts.interaction
         selectedPaneID = paneID
         replyText = ""
         expand()
     }
 
-    /// Read a pane and classify its prompt. Reads `detection` for clean prompt
-    /// structure, PLUS `visible` with ANSI preserved so the classifier can detect
-    /// the highlighted current wizard tab (which `detection` strips). The ANSI tab
-    /// bar is spliced onto the detection text so a single classify sees both.
-    private func readAndClassify(_ paneID: String) async -> ClassifiedPrompt {
+    private struct ReadPrompts {
+        let legacy: ClassifiedPrompt
+        let interaction: PendingInteraction
+    }
+
+    /// Read both herdr views once, then derive the temporary legacy prompt and
+    /// normalized interaction from the same evidence.
+    private func readPrompts(_ paneID: String) async -> ReadPrompts {
         let agent = store.panes[paneID]?.agent
         do {
             let params = try PaneReadParams(paneID: paneID, source: .detection).asJSONValue()
             let result = try await client.request("pane.read", params: params)
             let text = (try? result["read"]?.decode(PaneReadResult.self))?.text ?? ""
-            let currentTab = await currentTabLabel(paneID)
+            let visibleText = await visiblePaneText(paneID)
+            let currentTab = visibleText.flatMap(currentTabLabel)
             let classified = classifier.classify(agent: agent, text: text, currentTabLabel: currentTab)
+            let interaction = classifier.classifyInteraction(
+                paneID: paneID, agent: agent, text: text,
+                visibleANSIText: visibleText,
+                paneRevision: store.panes[paneID]?.revision,
+                currentTabLabel: currentTab)
             if ProcessInfo.processInfo.environment["NOTCH_DEBUG_PROMPT"] == "1" {
-                print("[notch] pane=\(paneID) tab=\(currentTab ?? "nil") kind=\(classified.kind)")
+                print("[notch] pane=\(paneID) agent=\(agent ?? "nil") "
+                    + "provider=\(interaction.evidence.providerID) kind=\(interaction.kind) "
+                    + "choices=\(interaction.choices.count) tab=\(currentTab ?? "nil")")
             }
-            return classified
+            return ReadPrompts(legacy: classified, interaction: interaction)
         } catch {
-            return .rawFallback("(couldn't read prompt: \(error))")
+            let text = "(couldn't read prompt: \(error))"
+            return ReadPrompts(
+                legacy: .rawFallback(text),
+                interaction: classifier.classifyInteraction(
+                    paneID: paneID, agent: agent, text: text,
+                    paneRevision: store.panes[paneID]?.revision))
         }
     }
 
-    private func currentTabLabel(_ paneID: String) async -> String? {
+    private func visiblePaneText(_ paneID: String) async -> String? {
         guard let params = try? PaneReadParams(paneID: paneID, source: .visible,
                                                 format: "ansi", stripAnsi: false).asJSONValue(),
               let result = try? await client.request("pane.read", params: params),
               let text = (try? result["read"]?.decode(PaneReadResult.self))?.text else { return nil }
+        return text
+    }
+
+    private func currentTabLabel(in text: String) -> String? {
         let normalized = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
         for line in normalized.split(separator: "\n", omittingEmptySubsequences: false).reversed() {
             let value = String(line)
@@ -287,8 +319,14 @@ final class NotchViewModel {
         if selectedPaneID == paneID { clearSelection(); return }
         manuallyOpened = true
         Task { @MainActor in
-            if store.derivedStatus(forPane: paneID) == .blocked { selectedPrompt = await readAndClassify(paneID) }
-            else { selectedPrompt = nil }
+            if store.derivedStatus(forPane: paneID) == .blocked {
+                let prompts = await readPrompts(paneID)
+                selectedPrompt = prompts.legacy
+                selectedInteraction = prompts.interaction
+            } else {
+                selectedPrompt = nil
+                selectedInteraction = nil
+            }
             selectedPaneID = paneID; replyText = ""; expand()
         }
     }
@@ -296,7 +334,14 @@ final class NotchViewModel {
     func toggle() { isExpanded ? collapse() : expand() }
     func expand() { presentation = .expanded }
     func collapse() { presentation = .collapsed }
-    func clearSelection() { selectedPaneID = nil; selectedPrompt = nil; replyText = ""; manuallyOpened = false; collapse() }
+    func clearSelection() {
+        selectedPaneID = nil
+        selectedPrompt = nil
+        selectedInteraction = nil
+        replyText = ""
+        manuallyOpened = false
+        collapse()
+    }
 
     func approveSelected() {
         guard let pane = selectedPaneID, let prompt = selectedPrompt else { return }
@@ -309,9 +354,11 @@ final class NotchViewModel {
     func answerSelected(index: Int) {
         guard let pane = selectedPaneID else { return }
         Task { @MainActor in
-            let prompt = await readAndClassify(pane)
+            let prompts = await readPrompts(pane)
+            let prompt = prompts.legacy
             guard prompt.options.indices.contains(index) else { lastError = "That option is no longer available."; return }
             selectedPrompt = prompt
+            selectedInteraction = prompts.interaction
             runAction { try await self.actions.answer(pane: pane, prompt: prompt, optionIndex: index) }
         }
     }
@@ -320,6 +367,14 @@ final class NotchViewModel {
         let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         runAction { try await self.actions.reply(pane: pane, text: text) }
+    }
+    /// Explicit manual typing for partially supported normalized interactions.
+    /// It does not press Enter; the user remains in control of submission.
+    func typeTextWithoutSubmitSelected() {
+        guard let pane = selectedPaneID else { return }
+        let text = replyText
+        guard !text.isEmpty else { return }
+        runAction { try await self.actions.reply(pane: pane, text: text, submit: false) }
     }
     func submitTextOption(index: Int, text: String) {
         guard let pane = selectedPaneID, let prompt = selectedPrompt,
@@ -381,8 +436,10 @@ final class NotchViewModel {
             try? await Task.sleep(nanoseconds: 160_000_000)
             guard selectedPaneID == pane else { return }
             if store.derivedStatus(forPane: pane) != .blocked { clearSelection(); return }
-            let next = await readAndClassify(pane)
+            let prompts = await readPrompts(pane)
+            let next = prompts.legacy
             selectedPrompt = next
+            selectedInteraction = prompts.interaction
             if next == stable { count += 1 } else { stable = next; count = 1 }
             if count >= 2, next != previous { return }
         }
