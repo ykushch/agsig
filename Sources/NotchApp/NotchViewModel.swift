@@ -45,9 +45,12 @@ final class NotchViewModel {
         let attentionRank = Dictionary(uniqueKeysWithValues:
             interactions.attentionOrder.enumerated().map { ($0.element, $0.offset) })
         return panes.map { pane in
-            let workspace = store.workspaces[pane.workspaceID]?.label ?? pane.workspaceID
+            let workspaceLabel = store.workspaces[pane.workspaceID]?.label
+            let workspace = workspaceLabel ?? pane.workspaceID
             return InteractionAttentionDisplayModel(
                 paneID: pane.paneID,
+                taskTitle: PaneDisplayIdentity.taskTitle(
+                    pane: pane, workspaceLabel: workspaceLabel),
                 agentName: pane.displayAgent ?? pane.agent ?? "agent",
                 workspaceLabel: workspace,
                 status: store.derivedStatus(forPane: pane.paneID),
@@ -131,6 +134,14 @@ final class NotchViewModel {
     var agentCount: Int { store.panes.values.filter { $0.agent != nil }.count }
 
     var hasAttention: Bool { attentionCount > 0 || overallStatus == .blocked }
+
+    /// Project/session title for the selected blocked pane, otherwise the most
+    /// urgent blocked pane. Nil preserves the compact count-only idle pill.
+    var pillTaskTitle: String? {
+        guard hasAttention else { return nil }
+        return AttentionRollupDisplay.pillTaskTitle(
+            items: attentionItems, selectedPaneID: selectedPaneID)
+    }
 
     // MARK: Dependencies
 

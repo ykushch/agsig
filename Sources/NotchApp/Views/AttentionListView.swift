@@ -33,13 +33,21 @@ struct AttentionListView: View {
                 HStack {
                     Text(item.title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
                     Spacer()
+                    Text(item.agentName.uppercased())
+                        .font(.system(size: 7, weight: .bold, design: .rounded))
+                        .foregroundStyle(.cyan.opacity(0.9))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Capsule().fill(.cyan.opacity(0.12)))
+                }
+                HStack {
+                    Text(item.summary).font(.system(size: 9)).foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                    Spacer()
                     Text(item.stateText).font(.system(size: 8, weight: .bold))
                         .foregroundStyle(item.status == .blocked ? .red : .white.opacity(0.45))
                 }
-                Text(item.summary).font(.system(size: 9)).foregroundStyle(.white.opacity(0.55))
-                    .lineLimit(1)
-                Text(item.paneID).font(.system(size: 8, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.35))
+                Text(item.workspaceLabel).font(.system(size: 8))
+                    .foregroundStyle(.white.opacity(0.32)).lineLimit(1)
             }
         }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
     }

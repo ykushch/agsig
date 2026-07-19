@@ -288,12 +288,28 @@ struct InteractionDisplayModelTests {
         let readyState = PaneInteractionState(
             paneID: "w1:p1", agentID: "claude", interaction: interaction)
         let ready = InteractionAttentionDisplayModel(
-            paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+            paneID: "w1:p1", taskTitle: "Fix auth", agentName: "claude",
+            workspaceLabel: "project",
             status: .blocked, state: readyState, isSelected: true)
         #expect(ready.stateText == "needs input")
         #expect(ready.summary == "Question 2/3 (2 unanswered)")
-        #expect(ready.accessibilityLabel.contains("claude — project"))
+        #expect(ready.title == "Fix auth")
+        #expect(ready.accessibilityLabel.contains("Fix auth, claude, project"))
         #expect(ready.accessibilityLabel.contains("pane w1:p1"))
+        let other = InteractionAttentionDisplayModel(
+            paneID: "w1:p2", taskTitle: "Ship release", agentName: "codex",
+            workspaceLabel: "release", status: .blocked, state: nil,
+            isSelected: false)
+        #expect(AttentionRollupDisplay.pillTaskTitle(
+            items: [ready, other], selectedPaneID: "w1:p2") == "Ship release")
+        #expect(AttentionRollupDisplay.pillTaskTitle(
+            items: [ready, other], selectedPaneID: nil) == "Fix auth")
+        let working = InteractionAttentionDisplayModel(
+            paneID: "w1:p3", taskTitle: "Background work", agentName: "claude",
+            workspaceLabel: "project", status: .working, state: nil,
+            isSelected: false)
+        #expect(AttentionRollupDisplay.pillTaskTitle(
+            items: [working], selectedPaneID: "w1:p3") == nil)
 
         for (phase, expected) in [
             (PaneInteractionPhase.reading, "Reading the live prompt…"),
@@ -303,7 +319,8 @@ struct InteractionDisplayModelTests {
             let state = PaneInteractionState(
                 paneID: "w1:p1", interaction: interaction, phase: phase)
             let row = InteractionAttentionDisplayModel(
-                paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+                paneID: "w1:p1", taskTitle: "Fix auth", agentName: "claude",
+                workspaceLabel: "project",
                 status: .blocked, state: state, isSelected: false)
             #expect(row.stateText == phase.rawValue)
             #expect(row.summary == expected)
@@ -315,17 +332,44 @@ struct InteractionDisplayModelTests {
                 text: "old answer", fingerprint: interaction.fingerprint,
                 state: .stale))
         #expect(InteractionAttentionDisplayModel(
-            paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+            paneID: "w1:p1", taskTitle: "Fix auth", agentName: "claude",
+            workspaceLabel: "project",
             status: .blocked, state: stale, isSelected: false).stateText
             == "draft needs review")
 
         let failed = PaneInteractionState(
             paneID: "w1:p1", interaction: interaction, error: "Input rejected")
         let errorRow = InteractionAttentionDisplayModel(
-            paneID: "w1:p1", agentName: "claude", workspaceLabel: "project",
+            paneID: "w1:p1", taskTitle: "Fix auth", agentName: "claude",
+            workspaceLabel: "project",
             status: .blocked, state: failed, isSelected: false)
         #expect(errorRow.stateText == "error")
         #expect(errorRow.summary == "Input rejected")
+    }
+
+    @Test("pane identity prefers title, label, then cwd basename")
+    func paneIdentityFallbacks() {
+        func pane(title: String? = nil, label: String? = nil,
+                  cwd: String? = nil, foregroundCwd: String? = nil) -> PaneInfo {
+            PaneInfo(
+                paneID: "w1:p1", terminalID: "term-1", workspaceID: "w1",
+                tabID: "w1:t1", focused: false, agentStatus: .blocked,
+                revision: 1, agent: "codex", label: label, title: title,
+                cwd: cwd, foregroundCwd: foregroundCwd)
+        }
+
+        #expect(PaneDisplayIdentity.taskTitle(
+            pane: pane(title: "  Fix auth  ", label: "fallback",
+                       cwd: "/work/project")) == "Fix auth")
+        #expect(PaneDisplayIdentity.taskTitle(
+            pane: pane(label: "Release prep", cwd: "/work/project")) == "Release prep")
+        #expect(PaneDisplayIdentity.taskTitle(
+            pane: pane(cwd: "/work/project")) == "project")
+        #expect(PaneDisplayIdentity.taskTitle(
+            pane: pane(foregroundCwd: "/work/live-project")) == "live-project")
+        #expect(PaneDisplayIdentity.taskTitle(
+            pane: pane(), workspaceLabel: "Workspace") == "Workspace")
+        #expect(PaneDisplayIdentity.taskTitle(pane: pane()) == "codex")
     }
 
     @Test("Claude text-entry choices remain typed in shared display data")

@@ -18,9 +18,18 @@ struct PlaceholderNotchView: View {
     private var pill: some View {
         HStack(spacing: 6) {
             Circle().fill(statusColor(model.overallStatus)).frame(width: 8, height: 8)
-            Text("\(model.agentCount)").font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white).monospacedDigit()
-            if model.attentionCount > 0 {
+            if let title = model.pillTaskTitle {
+                Text(title).font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white).lineLimit(1).truncationMode(.middle)
+                Text("\(model.attentionCount)▲")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.red).monospacedDigit()
+            } else {
+                Text("\(model.agentCount)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white).monospacedDigit()
+            }
+            if model.pillTaskTitle == nil, model.attentionCount > 0 {
                 Text("\(model.attentionCount)▲").font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.red)
             }
@@ -109,7 +118,9 @@ struct PlaceholderNotchView: View {
             Circle().fill(statusColor(model.selectedStatus ?? .unknown)).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item?.title ?? paneID).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                Text(paneID).font(.system(size: 8, design: .monospaced)).foregroundStyle(.white.opacity(0.4))
+                Text([item?.agentName, item?.workspaceLabel].compactMap { $0 }
+                    .joined(separator: " · "))
+                    .font(.system(size: 8, weight: .medium)).foregroundStyle(.white.opacity(0.45))
             }
             Spacer()
             Button("Jump") { model.jump(paneID) }.buttonStyle(.plain)

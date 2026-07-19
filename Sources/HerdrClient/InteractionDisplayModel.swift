@@ -100,6 +100,7 @@ public struct InteractionDisplayModel: Sendable, Equatable {
 /// accessibility can be fixture tested.
 public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatable {
     public let paneID: String
+    public let taskTitle: String
     public let agentName: String
     public let workspaceLabel: String
     public let status: RollupStatus
@@ -108,15 +109,17 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     public let isSelected: Bool
 
     public var id: String { paneID }
-    public var title: String { "\(agentName) — \(workspaceLabel)" }
+    public var title: String { taskTitle }
     public var accessibilityLabel: String {
-        "\(title), pane \(paneID), \(stateText), \(summary)"
+        "\(title), \(agentName), \(workspaceLabel), pane \(paneID), \(stateText), \(summary)"
     }
 
-    public init(paneID: String, agentName: String, workspaceLabel: String,
-                status: RollupStatus, state: PaneInteractionState?,
+    public init(paneID: String, taskTitle: String, agentName: String,
+                workspaceLabel: String, status: RollupStatus,
+                state: PaneInteractionState?,
                 isSelected: Bool) {
         self.paneID = paneID
+        self.taskTitle = taskTitle
         self.agentName = agentName
         self.workspaceLabel = workspaceLabel
         self.status = status
@@ -153,5 +156,45 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     private static func oneLine(_ value: String) -> String {
         value.split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
+    }
+}
+
+/// Stable project/session identity derived only from fields herdr already owns.
+/// A true agent task name is not available yet, so cwd is deliberately a
+/// project-name fallback rather than being presented as model-authored context.
+public enum PaneDisplayIdentity {
+    public static func taskTitle(
+        pane: PaneInfo, workspaceLabel: String? = nil
+    ) -> String {
+        if let title = nonEmpty(pane.title) { return title }
+        if let label = nonEmpty(pane.label) { return label }
+        if let cwd = nonEmpty(pane.cwd), !URL(fileURLWithPath: cwd).lastPathComponent.isEmpty {
+            return URL(fileURLWithPath: cwd).lastPathComponent
+        }
+        if let cwd = nonEmpty(pane.foregroundCwd),
+           !URL(fileURLWithPath: cwd).lastPathComponent.isEmpty {
+            return URL(fileURLWithPath: cwd).lastPathComponent
+        }
+        if let workspaceLabel = nonEmpty(workspaceLabel) { return workspaceLabel }
+        return nonEmpty(pane.displayAgent) ?? nonEmpty(pane.agent) ?? pane.paneID
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+}
+
+public enum AttentionRollupDisplay {
+    public static func pillTaskTitle(
+        items: [InteractionAttentionDisplayModel], selectedPaneID: String?
+    ) -> String? {
+        if let selectedPaneID,
+           let selected = items.first(where: {
+               $0.paneID == selectedPaneID && $0.status == .blocked
+           }) {
+            return selected.taskTitle
+        }
+        return items.first(where: { $0.status == .blocked })?.taskTitle
     }
 }
