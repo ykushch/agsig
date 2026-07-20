@@ -25,8 +25,9 @@ With Homebrew:
 brew install --cask ykushch/tap/notchagent
 ```
 
-If macOS quarantine blocks the ad-hoc-signed app, reinstall with
-`brew install --cask --no-quarantine ykushch/tap/notchagent`.
+Because the release is ad-hoc signed rather than notarized, macOS may block its
+first launch. Right-click the installed app and choose **Open**, or remove its
+quarantine attribute with the command below.
 
 Alternatively, download `NotchApp-<version>.zip` from GitHub Releases, extract
 it, and move `NotchApp.app` to `/Applications`. Because release bundles are
