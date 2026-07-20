@@ -55,6 +55,30 @@ swift build            # all targets
 swift test             # full test suite (swift-testing)
 ```
 
+## Releasing
+
+GitHub Actions builds and tests every push and pull request to `main` on the
+`macos-15` runner with Xcode 16.4. A pushed version tag runs the same tests,
+builds `NotchApp-<version>.zip`, verifies the app and archive signatures,
+publishes a GitHub Release with generated notes, and updates the Homebrew cask.
+
+The release workflow needs one repository secret named `HOMEBREW_TAP_TOKEN`.
+Create a fine-grained personal access token restricted to the
+`ykushch/homebrew-tap` repository with **Contents: Read and write**, then add it
+under **Settings → Secrets and variables → Actions** in this repository. The
+built-in `GITHUB_TOKEN` publishes the release itself and does not need another
+secret.
+
+Once that secret is configured, releasing is just:
+
+```bash
+git tag -a v1.2.3 -m "NotchAgent 1.2.3"
+git push origin v1.2.3
+```
+
+Tags must contain numeric dot-separated versions (`v1.2.3`); the workflow passes
+the version to `bundle.sh` and writes the resulting archive SHA-256 into the tap.
+
 ## `notchctl` — headless CLI harness
 
 Dogfoods the whole core (client + store + classifier + actions) before/without
