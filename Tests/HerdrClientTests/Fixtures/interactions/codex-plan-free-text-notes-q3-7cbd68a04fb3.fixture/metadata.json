@@ -1,0 +1,65 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "cancel_notes" : [
+        "esc"
+      ],
+      "clear_notes" : [
+        "tab"
+      ],
+      "submit_all" : [
+        "enter"
+      ]
+    },
+    "interaction_kind" : "question_text_entry",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-free-text-notes-q3",
+    "notes" : [
+      "Opened with Tab and captured empty Add notes field without submission."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Turn your goal into concrete, ordered next steps.",
+      "Compare options and confidently choose a direction.",
+      "Create milestones and a way to track progress.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Action plan (Recommended)",
+      "Decision clarity",
+      "Accountability",
+      "None of the above"
+    ],
+    "progress" : "Question 3/3 (3 unanswered)",
+    "response_mechanism" : "free_text_notes",
+    "title" : "What kind of result would be most valuable?"
+  },
+  "artifact_sha256" : "7cbd68a04fb3afb3a00adecb74c3cb4b603f6d4dbaf4e1a5cc72f4c109afc610",
+  "fixture_detection_sha256" : "81f12679eb34d18aee54e713a9ce480d89b9fecb66ac85ab08340a759d4ba86b",
+  "fixture_visible_ansi_sha256" : "848119f89e5c89e00f65195b24ec041c186bb96efdd41348283b995257b36892",
+  "region" : {
+    "end_marker" : "enter to submit all",
+    "start_marker" : "Question 3/3"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:04:53Z",
+    "detection_byte_count" : 1397,
+    "detection_sha256" : "de6dd15ca1a72beb13dabbed4f005d18ca482dd910e4294355702c39b8c657b5",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11065,
+    "pane_revision_before" : 11065,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4731,
+    "visible_ansi_sha256" : "4f79029660baeab6d1560b278860ec121ce1b6095c0e658f05c72cc4bd4557d1"
+  }
+}

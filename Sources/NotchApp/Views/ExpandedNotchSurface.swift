@@ -1,0 +1,267 @@
+import HerdrClient
+import SwiftUI
+
+struct ExpandedNotchSurface: View {
+    @Bindable var model: NotchViewModel
+    let presentation: NotchPresentation
+    let snapshot: NotchDisplaySnapshot
+    let topInset: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ExpandedNotchHeader(
+                model: model,
+                isFocused: presentation.isFocused,
+                sessionCount: snapshot.items.count)
+            Divider().overlay(NotchPalette.hairline)
+            ZStack {
+                NotchOverviewSurface(model: model, snapshot: snapshot)
+                    .opacity(presentation == .overview ? 1 : 0)
+                    .allowsHitTesting(presentation == .overview)
+
+                NotchFocusedSurface(model: model, snapshot: snapshot)
+                    .opacity(presentation.isFocused ? 1 : 0)
+                    .allowsHitTesting(presentation.isFocused)
+            }
+        }
+        .padding(.top, topInset > 0 ? topInset + 5 : 8)
+        .foregroundStyle(.white)
+    }
+}
+
+private struct ExpandedNotchHeader: View {
+    @Bindable var model: NotchViewModel
+    let isFocused: Bool
+    let sessionCount: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if isFocused {
+                Button(action: model.showOverview) {
+                    Label("All \(sessionCount)", systemImage: "chevron.left")
+                }
+                .help("Show all sessions")
+            } else {
+                Label("\(sessionCount) sessions", systemImage: "terminal")
+            }
+            Spacer()
+            if isFocused {
+                Button { model.selectAdjacentPane(-1) } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .keyboardShortcut("[", modifiers: .command)
+                .help("Previous agent")
+                Button { model.selectAdjacentPane(1) } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .keyboardShortcut("]", modifiers: .command)
+                .help("Next agent")
+            }
+            Button(action: model.collapse) {
+                Image(systemName: "chevron.up")
+            }
+            .help("Collapse")
+        }
+        .font(.system(size: 11, weight: .semibold, design: .rounded))
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.72))
+        .padding(.horizontal, 16)
+        .frame(height: 38)
+    }
+}
+
+private struct NotchOverviewSurface: View {
+    @Bindable var model: NotchViewModel
+    let snapshot: NotchDisplaySnapshot
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 7) {
+                if model.connection == .unavailable {
+                    StatusBanner(
+                        text: "herdr isn't reachable. Is the server running?",
+                        systemImage: "exclamationmark.triangle.fill",
+                        color: .orange)
+                }
+                AttentionListView(
+                    items: snapshot.items,
+                    select: model.selectPane,
+                    jump: model.jump)
+                if snapshot.items.isEmpty, model.connection != .unavailable {
+                    ContentUnavailableView(
+                        "No agent sessions",
+                        systemImage: "terminal",
+                        description: Text("Start an agent under herdr and it will appear here."))
+                    .foregroundStyle(NotchPalette.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                }
+                if model.accessibilityMissing {
+                    StatusBanner(
+                        text: "Global hotkeys need Accessibility permission.",
+                        systemImage: "keyboard.badge.ellipsis",
+                        color: .orange)
+                }
+            }
+            .padding(14)
+        }
+    }
+}
+
+private struct NotchFocusedSurface: View {
+    @Bindable var model: NotchViewModel
+    let snapshot: NotchDisplaySnapshot
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let item = snapshot.selectedItem,
+                       let paneID = model.selectedPaneID {
+                        FocusedSessionHeader(model: model, paneID: paneID, item: item)
+                        FocusedInteractionContent(model: model, item: item)
+                    } else {
+                        ProgressView("Loading session…")
+                            .foregroundStyle(NotchPalette.secondaryText)
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                    }
+                }
+                .padding(14)
+            }
+            if let state = model.selectedInteractionState {
+                Divider().overlay(NotchPalette.hairline)
+                if let interaction = state.interaction {
+                    InteractionActionShelf(
+                        model: model,
+                        interaction: interaction,
+                        phase: state.phase)
+                        .id(interaction.fingerprint.rawValue)
+                } else if state.phase != .reading {
+                    TerminalFallbackShelf(
+                        model: model,
+                        warning: "No structured prompt was detected. Drive the selected terminal manually.")
+                }
+            }
+        }
+    }
+}
+
+private struct FocusedSessionHeader: View {
+    @Bindable var model: NotchViewModel
+    let paneID: String
+    let item: InteractionAttentionDisplayModel
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Circle()
+                .fill(NotchPalette.status(item.status))
+                .frame(width: 9, height: 9)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                Text([item.agentName, item.modelName, item.workspaceLabel]
+                    .compactMap { $0 }.joined(separator: " · "))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(NotchPalette.tertiaryText)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if let elapsed = item.elapsedText {
+                Text(elapsed).monospacedDigit()
+            }
+            if let freshness = item.freshnessText {
+                Text(freshness).foregroundStyle(.cyan.opacity(0.62))
+            }
+            Button("Jump") { model.jump(paneID) }
+                .foregroundStyle(.cyan)
+        }
+        .font(.system(size: 9, weight: .medium))
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FocusedInteractionContent: View {
+    @Bindable var model: NotchViewModel
+    let item: InteractionAttentionDisplayModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            if let state = model.selectedInteractionState {
+                if state.draft.state == .stale {
+                    StaleDraftBanner(model: model, state: state)
+                }
+                if let interaction = state.interaction {
+                    InteractionDetailView(
+                        interaction: interaction,
+                        draftText: $model.replyText,
+                        phase: state.phase,
+                        hotkeySymbols: model.hotkeySymbols,
+                        respond: model.respondToSelectedInteraction)
+                } else if state.phase == .reading {
+                    ProgressView("Reading live prompt…")
+                        .foregroundStyle(NotchPalette.secondaryText)
+                } else {
+                    Text("No structured prompt was detected. Manual controls remain available.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                }
+                if let error = state.error {
+                    StatusBanner(text: error, systemImage: "exclamationmark.circle", color: .red)
+                }
+            } else {
+                Text(item.status == .done ? item.summary : idleMessage(item.status))
+                    .font(.system(size: 10))
+                    .foregroundStyle(NotchPalette.secondaryText)
+            }
+        }
+    }
+
+    private func idleMessage(_ status: RollupStatus) -> String {
+        switch status {
+        case .working: "This agent is working — nothing to answer right now."
+        case .done: "This agent finished. Jump to review its output."
+        case .idle: "This agent is idle — no prompt is waiting."
+        default: "No pending prompt was detected."
+        }
+    }
+}
+
+private struct StaleDraftBanner: View {
+    @Bindable var model: NotchViewModel
+    let state: PaneInteractionState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Saved draft belongs to an earlier prompt")
+                .font(.system(size: 10, weight: .semibold))
+            Text(state.draft.text)
+                .font(.system(size: 9, design: .monospaced))
+                .lineLimit(3)
+            HStack {
+                Button("Reuse draft", action: model.confirmSelectedDraftReuse)
+                Button("Discard", action: model.discardSelectedDraft)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.cyan)
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.16)))
+        .foregroundStyle(.orange)
+    }
+}
+
+private struct StatusBanner: View {
+    let text: String
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 9).fill(color.opacity(0.13)))
+    }
+}

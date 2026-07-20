@@ -1,0 +1,65 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "interrupt" : [
+        "esc"
+      ],
+      "previous_question" : [
+        "left"
+      ],
+      "submit_all" : [
+        "enter"
+      ]
+    },
+    "interaction_kind" : "review_submit",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-final-submit-all",
+    "notes" : [
+      "All questions answered; Enter performs final submission."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Turn your goal into concrete, ordered next steps.",
+      "Compare options and confidently choose a direction.",
+      "Create milestones and a way to track progress.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Action plan (Recommended)",
+      "Decision clarity",
+      "Accountability",
+      "None of the above"
+    ],
+    "progress" : "Question 3/3",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "What kind of result would be most valuable?"
+  },
+  "artifact_sha256" : "705b9b000070738e26bb5da0f43fe819e81bdda276e2a9e9cde265767492d523",
+  "fixture_detection_sha256" : "3820522bcc872651573f0834013b624a9e0a262bffd7ad42f287ae18587a61cf",
+  "fixture_visible_ansi_sha256" : "b314fafeb18cd9c4915795f26565fdfd4b1c331b064a4852ed1f2ffb52e925fa",
+  "region" : {
+    "end_marker" : "esc to interrupt",
+    "start_marker" : "Question 3/3"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:06:02Z",
+    "detection_byte_count" : 1407,
+    "detection_sha256" : "0eb8ec87e50fcb1b4589e95c0cf9461cff655af1fa966203d2d95122cf2756a2",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11134,
+    "pane_revision_before" : 11134,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4237,
+    "visible_ansi_sha256" : "dbed5607e6f1060102b9b974c8603d16b43eb6c5d9dcbc5293c8a475b1f939d3"
+  }
+}

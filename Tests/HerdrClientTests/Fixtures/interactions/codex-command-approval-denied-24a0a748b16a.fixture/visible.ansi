@@ -1,0 +1,6 @@
+[0m[38;5;1m✗ [0mYou [0m[1mcanceled[0m the request to run [0m[2mtouch /Users/example/Desktop/notchagent-approval-demo[0m
+
+[0m[1m[38;5;2m•[0m [0m[1mRan[0m [0m[38;2;137;180;250mtouch[0m[38;2;205;214;244m /Users/example/Desktop/notchagent-approval-demo[0m
+[0m[2m  └ (no output)[0m
+
+[0m[38;5;1m■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the issue.[0m

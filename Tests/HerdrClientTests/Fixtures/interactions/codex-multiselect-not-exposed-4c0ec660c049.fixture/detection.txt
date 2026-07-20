@@ -1,0 +1,9 @@
+  Question 1/1 (1 unanswered)
+  Select all areas you’d like to explore (you may choose multiple).
+
+  › 1. Technology (Recommended)  Software, AI, gadgets, and digital tools.
+    2. Creative work             Writing, design, music, and visual arts.
+    3. Health                    Fitness, nutrition, sleep, and wellbeing.
+    4. None of the above         Optionally, add details in notes (tab).
+
+  tab to add notes | enter to submit answer | esc to interrupt

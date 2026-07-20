@@ -1,0 +1,49 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+
+    },
+    "interaction_kind" : "none",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-command-approval-denied",
+    "notes" : [
+      "Esc denied the approval; filesystem check confirmed the requested file was absent. Command path explicitly sanitized."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "option_descriptions" : [
+
+    ],
+    "option_labels" : [
+
+    ],
+    "response_mechanism" : "none",
+    "title" : "Approval denied"
+  },
+  "artifact_sha256" : "24a0a748b16a940979137d807bf9a86466487eb1c2c1366072092f6d75ec4538",
+  "fixture_detection_sha256" : "c99b2dce6326d4b82b3d37e508f87ecb2091da2924b865561cdd872cd73a5248",
+  "fixture_visible_ansi_sha256" : "1c53694369741bade1acb622ddf6e321c6c3b1e5d03c444063be9ac3673c0964",
+  "region" : {
+    "end_marker" : "Conversation interrupted",
+    "start_marker" : "the request to run"
+  },
+  "sanitization" : "explicit_replacement",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "done",
+    "agent_status_before" : "done",
+    "captured_at" : "2026-07-18T21:09:16Z",
+    "detection_byte_count" : 1460,
+    "detection_sha256" : "c4245bf663b122c21f1424ba7496475f7255c83c1fbda6ff20cc8286b5c693c9",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11191,
+    "pane_revision_before" : 11191,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 3017,
+    "visible_ansi_sha256" : "13919620ccefbc47642763ff7a6a2ccec44d98656f3db78680a329ad07f383f4"
+  }
+}

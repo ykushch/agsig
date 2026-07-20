@@ -1,0 +1,84 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "add_notes" : [
+        "tab"
+      ],
+      "interrupt" : [
+        "esc"
+      ],
+      "next_question" : [
+        "right"
+      ],
+      "option_1" : [
+        "enter"
+      ],
+      "option_2" : [
+        "down",
+        "enter"
+      ],
+      "option_3" : [
+        "down",
+        "down",
+        "enter"
+      ],
+      "option_4" : [
+        "down",
+        "down",
+        "down",
+        "enter"
+      ]
+    },
+    "interaction_kind" : "question",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-single-select-q1",
+    "notes" : [
+      "Captured live from herdr pane w1:p2 while notchctl list reported codex/blocked.",
+      "Active region is isolated deterministically from the last Question 1/3 marker through the footer."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Focus on work, skills, projects, or business growth.",
+      "Focus on habits, confidence, learning, or direction.",
+      "Focus on physical fitness, energy, sleep, or wellbeing.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Career (Recommended)",
+      "Personal growth",
+      "Health",
+      "None of the above"
+    ],
+    "progress" : "Question 1/3 (3 unanswered)",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "Which area would you most like to improve right now?"
+  },
+  "artifact_sha256" : "df1ba02160475fd39d808bf96ce0c38c3232df4e1c513245fd232facbe839919",
+  "fixture_detection_sha256" : "8b42221cff900399178c8988f6e98891eb4fc61351f994d6d848486a5961bd55",
+  "fixture_visible_ansi_sha256" : "65957f12cb382b1fdc542019fdbd3af06afbe4bb30e1812a94ec4393a48e36b8",
+  "region" : {
+    "end_marker" : "esc to interrupt",
+    "start_marker" : "Question 1/3"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:00:44Z",
+    "detection_byte_count" : 1516,
+    "detection_sha256" : "e3e7afbf3332210192c51ee250e4f3b47a2f9125a08842f8989bafa29abac6b7",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 10817,
+    "pane_revision_before" : 10817,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4332,
+    "visible_ansi_sha256" : "b7dc517051228bec645c54aeb4296e9dbb5189226eecb298fe302448fe393416"
+  }
+}

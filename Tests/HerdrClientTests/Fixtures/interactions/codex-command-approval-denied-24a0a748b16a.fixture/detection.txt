@@ -1,0 +1,6 @@
+✗ You canceled the request to run touch /Users/example/Desktop/notchagent-approval-demo
+
+• Ran touch /Users/example/Desktop/notchagent-approval-demo
+  └ (no output)
+
+■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the issue.

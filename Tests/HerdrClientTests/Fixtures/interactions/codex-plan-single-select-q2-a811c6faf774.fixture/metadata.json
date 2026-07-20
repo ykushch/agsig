@@ -1,0 +1,71 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "next_question" : [
+        "right"
+      ],
+      "option_1" : [
+        "enter"
+      ],
+      "option_4" : [
+        "down",
+        "down",
+        "down",
+        "enter"
+      ],
+      "previous_question" : [
+        "left"
+      ]
+    },
+    "interaction_kind" : "question",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-single-select-q2",
+    "notes" : [
+      "Reached with Right without answering question 1; status remained blocked."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "You need help deciding what to pursue or prioritize.",
+      "You know what to do but struggle to make room for it.",
+      "Starting or staying consistent is the main challenge.",
+      "Optionally, add details in notes (tab)."
+    ],
+    "option_labels" : [
+      "Unclear direction (Recommended)",
+      "Limited time",
+      "Low momentum",
+      "None of the above"
+    ],
+    "progress" : "Question 2/3 (3 unanswered)",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "What is the biggest obstacle you’re facing?"
+  },
+  "artifact_sha256" : "a811c6faf774e52bd8bf45d17f1ba19c60cbc8ca251304e8bd4f1d3e5924ef9f",
+  "fixture_detection_sha256" : "c56528bacf5da324202bde4ae40681045e9b6d08cdf2bf18e5e592a3b860a974",
+  "fixture_visible_ansi_sha256" : "a7297bf183923af4db8e7991d0126149916974dc24aa8f925e1cd458bed13eb9",
+  "region" : {
+    "end_marker" : "esc to interrupt",
+    "start_marker" : "Question 2/3"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:04:32Z",
+    "detection_byte_count" : 1552,
+    "detection_sha256" : "ddd5109eb90fb8dada91385fe78f0fb5c7cb147edfdf3e5f25afc553bffc8fa0",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11044,
+    "pane_revision_before" : 11044,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 4334,
+    "visible_ansi_sha256" : "139d10d37192d2a00dc9626f1e4126f696679be0fe36c67a0a778a90271caae0"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "approve_once" : [
+        "enter"
+      ],
+      "approve_session" : [
+        "down",
+        "enter"
+      ],
+      "cancel" : [
+        "esc"
+      ],
+      "deny" : [
+        "down",
+        "down",
+        "enter"
+      ]
+    },
+    "interaction_kind" : "security_approval",
+    "manifest_rule" : "live_claude_edit_approval",
+    "name" : "claude-edit-approval-diff",
+    "notes" : [
+      "Captured from a disposable Claude Code session in manual permission mode and safe mode.",
+      "The isolated source file contained alpha and old value; the proposed edit replaced only old value with new value.",
+      "The temporary workspace was not accepted or applied after capture."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+
+    ],
+    "option_labels" : [
+      "Yes",
+      "Yes, allow all edits during this session (shift+tab)",
+      "No"
+    ],
+    "response_mechanism" : "arrow_navigate",
+    "title" : "Do you want to make this edit to sample.txt?"
+  },
+  "artifact_sha256" : "982df03912ba734359ce65202ea773d15aa5803e0194fd37da35c646bf2c0c20",
+  "fixture_detection_sha256" : "f39c28eda5c498d063629b1c29f0d6df4a1bfd84cf631ce831688beab2003dad",
+  "fixture_visible_ansi_sha256" : "33d711eefc8eec171c4ca55d4e1bff8e6e7a4a66c978a8637971c0231752151e",
+  "region" : {
+    "end_marker" : "Esc to cancel · Tab to amend",
+    "start_marker" : "Edit file"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "claude",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-19T16:46:49Z",
+    "detection_byte_count" : 3062,
+    "detection_sha256" : "b3879df67795178dee75392d49dc2b20ff7df302d10b794fd87de50865ad9942",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w3:p2",
+    "pane_revision_after" : 2,
+    "pane_revision_before" : 2,
+    "terminal_id" : "term_656f982858a186",
+    "visible_ansi_byte_count" : 5433,
+    "visible_ansi_sha256" : "882febe283e685853eaf76441513aab53a5976260a0c72da25d039628b9a71dc"
+  }
+}

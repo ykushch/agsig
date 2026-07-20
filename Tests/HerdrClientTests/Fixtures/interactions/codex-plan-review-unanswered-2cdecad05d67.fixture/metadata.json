@@ -1,0 +1,61 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "cancel" : [
+        "esc"
+      ],
+      "go_back" : [
+        "down",
+        "enter"
+      ],
+      "proceed" : [
+        "enter"
+      ]
+    },
+    "interaction_kind" : "review_submit",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-review-unanswered",
+    "notes" : [
+      "Reached after answering only question 3; Go back was used and no final submission occurred."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Submit with 2 unanswered questions.",
+      "Return to the first unanswered question."
+    ],
+    "option_labels" : [
+      "Proceed",
+      "Go back"
+    ],
+    "progress" : "2 unanswered questions",
+    "response_mechanism" : "arrow_navigate",
+    "title" : "Submit with unanswered questions?"
+  },
+  "artifact_sha256" : "2cdecad05d67f28705500ba5f08e8d41beb5007d1eff3c9e159cf912bb66d054",
+  "fixture_detection_sha256" : "e0ef9b223073172cede0a4acdb2657b44fd87b4487fbcdc95d29d38a1e6604a9",
+  "fixture_visible_ansi_sha256" : "d2846b8fe095d24893e4c261a2e3c923c2b8d48dc9d95a34aa5afaebdfd41dea",
+  "region" : {
+    "start_marker" : "Submit with unanswered questions?"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-18T21:05:18Z",
+    "detection_byte_count" : 1142,
+    "detection_sha256" : "2c7ad10a72de6cb20f13be82825e97f0616fa3562aaf6e1da6d31accbce507f2",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11090,
+    "pane_revision_before" : 11090,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 3727,
+    "visible_ansi_sha256" : "fde76a05031da15feac421225e28a4a583c6d172f289287068f772babfa638a2"
+  }
+}

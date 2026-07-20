@@ -1,0 +1,7 @@
+Which deployment target?
+
+› 1. Production
+  2. Staging
+  3. Local only
+
+↑/↓ to navigate · Enter to select · Esc to cancel

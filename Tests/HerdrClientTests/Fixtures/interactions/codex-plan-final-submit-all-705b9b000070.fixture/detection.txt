@@ -1,0 +1,9 @@
+  Question 3/3
+  What kind of result would be most valuable?
+
+  › 1. Action plan (Recommended)  Turn your goal into concrete, ordered next steps.
+    2. Decision clarity           Compare options and confidently choose a direction.
+    3. Accountability             Create milestones and a way to track progress.
+    4. None of the above          Optionally, add details in notes (tab).
+
+  tab to add notes | enter to submit all | ←/→ to navigate questions | esc to interrupt

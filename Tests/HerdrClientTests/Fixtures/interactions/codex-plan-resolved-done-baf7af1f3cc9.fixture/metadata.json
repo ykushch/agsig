@@ -1,0 +1,49 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+
+    },
+    "interaction_kind" : "none",
+    "manifest_rule" : "osc_title_blocked + live_strong_blocker",
+    "name" : "codex-plan-resolved-done",
+    "notes" : [
+      "Negative fixture captured after final submission; herdr reported done, not blocked."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "option_descriptions" : [
+
+    ],
+    "option_labels" : [
+
+    ],
+    "progress" : "Questions 3/3 answered",
+    "response_mechanism" : "none",
+    "title" : "Resolved interaction"
+  },
+  "artifact_sha256" : "baf7af1f3cc9ce00289cd27fcd7e27f6dcffe4511537b09e3c0c9c859df81b6a",
+  "fixture_detection_sha256" : "52cc166c16cbbd2ee41c90d024d6f0736c6cb72c4eb010c77e66fd4e22fd4fae",
+  "fixture_visible_ansi_sha256" : "2600b740e1af213188a7d3c7fc76b484d78817bf9745d413209324291c204a1f",
+  "region" : {
+    "start_marker" : "3/3 answered"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "codex",
+    "agent_status_after" : "done",
+    "agent_status_before" : "done",
+    "captured_at" : "2026-07-18T21:07:00Z",
+    "detection_byte_count" : 1447,
+    "detection_sha256" : "14279ca871fb2f756faa65bc1ca95ea288405124ee1d765aa1fbda96af7551ba",
+    "herdr_protocol" : 16,
+    "herdr_version" : "0.7.4",
+    "pane_id" : "w1:p2",
+    "pane_revision_after" : 11162,
+    "pane_revision_before" : 11162,
+    "terminal_id" : "term_656e1e86412612",
+    "visible_ansi_byte_count" : 2746,
+    "visible_ansi_sha256" : "0e66d79b06c40681af5ab1df090be3f557ef2e088a82924614f99a292f8e9e66"
+  }
+}
