@@ -74,4 +74,52 @@ struct NotchGeometryTests {
         #expect(geometry.expandedSize.width == 396)
         #expect(geometry.expandedSize.height == 288)
     }
+
+    @Test("Overview height follows small session counts and caps large lists")
+    func adaptiveOverviewHeight() {
+        let geometry = NotchGeometry(metrics: NotchScreenMetrics(
+            frame: screenFrame,
+            visibleFrame: screenFrame,
+            safeAreaTop: 0))
+
+        #expect(geometry.overviewHeight(agentCount: 0, bannerCount: 0) == 244)
+        #expect(geometry.overviewHeight(agentCount: 1, bannerCount: 0) == 190)
+        #expect(geometry.overviewHeight(agentCount: 2, bannerCount: 0) == 192)
+        #expect(geometry.overviewHeight(agentCount: 3, bannerCount: 0) == 250)
+        #expect(geometry.overviewHeight(agentCount: 6, bannerCount: 0) == 420)
+    }
+
+    @Test("Overview warnings occupy natural space")
+    func adaptiveOverviewBanners() {
+        let geometry = NotchGeometry(metrics: NotchScreenMetrics(
+            frame: screenFrame,
+            visibleFrame: screenFrame,
+            safeAreaTop: 32,
+            auxiliaryTopLeftArea: CGRect(x: 0, y: 950, width: 656, height: 32),
+            auxiliaryTopRightArea: CGRect(x: 856, y: 950, width: 656, height: 32)))
+
+        #expect(geometry.overviewHeight(agentCount: 2, bannerCount: 1) == 272)
+        #expect(geometry.overviewHeight(agentCount: 2, bannerCount: 2) == 322)
+    }
+
+    @Test("Requested heights are rounded, clamped, and top-anchored")
+    func requestedExpandedFrame() {
+        let geometry = NotchGeometry(metrics: NotchScreenMetrics(
+            frame: screenFrame,
+            visibleFrame: screenFrame,
+            safeAreaTop: 0))
+        let size = geometry.expandedSize(requestedHeight: 251)
+        let frame = geometry.panelFrame(on: screenFrame, size: size)
+
+        #expect(size == CGSize(width: 520, height: 252))
+        #expect(frame.maxY == screenFrame.maxY)
+        #expect(frame.midX == screenFrame.midX)
+        #expect(geometry.expandedSize(requestedHeight: 900).height == 420)
+    }
+
+    @Test("Sub-four-point measurement noise is ignored")
+    func materialHeightThreshold() {
+        #expect(!NotchGeometry.materiallyDifferent(250, 253))
+        #expect(NotchGeometry.materiallyDifferent(250, 254))
+    }
 }

@@ -38,10 +38,15 @@ struct NotchGeometry: Sendable, Equatable {
     static let floatingCompactHeight: CGFloat = 30
     static let notchHorizontalSeam: CGFloat = 8
     static let notchChinHeight: CGFloat = 18
-    static let preferredExpandedSize = CGSize(width: 520, height: 420)
+    static let preferredExpandedWidth: CGFloat = 520
+    static let preferredMaximumExpandedHeight: CGFloat = 420
+    static let overviewRowHeight: CGFloat = 58
+    static let overviewBannerHeight: CGFloat = 44
+    static let overviewEmptyHeight: CGFloat = 168
 
     let compactSize: CGSize
-    let expandedSize: CGSize
+    let expandedWidth: CGFloat
+    let maximumExpandedHeight: CGFloat
     let topContentInset: CGFloat
 
     init(metrics: NotchScreenMetrics) {
@@ -55,10 +60,63 @@ struct NotchGeometry: Sendable, Equatable {
         let availableHeight = max(1, metrics.visibleFrame.height * 0.72)
 
         compactSize = CGSize(width: compactWidth, height: compactHeight)
-        expandedSize = CGSize(
-            width: min(Self.preferredExpandedSize.width, availableWidth),
-            height: min(Self.preferredExpandedSize.height, availableHeight))
+        expandedWidth = min(Self.preferredExpandedWidth, availableWidth)
+        maximumExpandedHeight = min(Self.preferredMaximumExpandedHeight, availableHeight)
         topContentInset = metrics.hasPhysicalNotch ? metrics.safeAreaTop : 0
+    }
+
+    var expandedSize: CGSize {
+        expandedSize(requestedHeight: maximumExpandedHeight)
+    }
+
+    var minimumOverviewHeight: CGFloat {
+        min(maximumExpandedHeight, max(190, topContentInset + 150))
+    }
+
+    var minimumFocusedHeight: CGFloat {
+        min(maximumExpandedHeight, max(300, topContentInset + 260))
+    }
+
+    func expandedSize(requestedHeight: CGFloat) -> CGSize {
+        CGSize(
+            width: expandedWidth,
+            height: min(maximumExpandedHeight, max(1, Self.roundHeight(requestedHeight))))
+    }
+
+    func overviewHeight(agentCount: Int, bannerCount: Int) -> CGFloat {
+        let header = topContentInset + (topContentInset > 0 ? 5 : 8) + 39
+        let content: CGFloat
+        if agentCount == 0 {
+            content = Self.overviewEmptyHeight
+        } else {
+            content = CGFloat(agentCount) * Self.overviewRowHeight
+        }
+        let banners = CGFloat(bannerCount) * Self.overviewBannerHeight
+        let sectionGaps = CGFloat(max(0, (agentCount > 0 ? 1 : 0) + bannerCount - 1)) * 7
+        return clampOverviewHeight(header + 28 + content + banners + sectionGaps)
+    }
+
+    func focusedHeight(choiceCount: Int, hasEvidence: Bool, hasActionShelf: Bool) -> CGFloat {
+        let header = topContentInset + (topContentInset > 0 ? 5 : 8) + 39
+        let promptContent = 92 + CGFloat(min(choiceCount, 4)) * 44 + (hasEvidence ? 46 : 0)
+        let shelf: CGFloat = hasActionShelf ? 58 : 0
+        return clampFocusedHeight(header + 28 + promptContent + shelf)
+    }
+
+    func clampOverviewHeight(_ height: CGFloat) -> CGFloat {
+        min(maximumExpandedHeight, max(minimumOverviewHeight, Self.roundHeight(height)))
+    }
+
+    func clampFocusedHeight(_ height: CGFloat) -> CGFloat {
+        min(maximumExpandedHeight, max(minimumFocusedHeight, Self.roundHeight(height)))
+    }
+
+    static func materiallyDifferent(_ lhs: CGFloat, _ rhs: CGFloat) -> Bool {
+        abs(lhs - rhs) >= 4
+    }
+
+    private static func roundHeight(_ height: CGFloat) -> CGFloat {
+        (height / 2).rounded() * 2
     }
 
     static func physicalNotchWidth(metrics: NotchScreenMetrics) -> CGFloat? {
@@ -74,6 +132,10 @@ struct NotchGeometry: Sendable, Equatable {
 
     func panelFrame(on screenFrame: CGRect, expanded: Bool) -> CGRect {
         let size = expanded ? expandedSize : compactSize
+        return panelFrame(on: screenFrame, size: size)
+    }
+
+    func panelFrame(on screenFrame: CGRect, size: CGSize) -> CGRect {
         return CGRect(
             x: screenFrame.midX - size.width / 2,
             y: screenFrame.maxY - size.height,

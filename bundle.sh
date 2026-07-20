@@ -45,6 +45,8 @@ echo "Assembling $OUT"
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 cp "$BIN" "$OUT/Contents/MacOS/${APP}"
+# App icon: regenerate with `swift scripts/generate-app-icon.swift`.
+cp Assets/AppIcon.icns "$OUT/Contents/Resources/AppIcon.icns"
 
 cat > "$OUT/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -58,6 +60,7 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
     <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>CFBundlePackageType</key>         <string>APPL</string>
     <key>CFBundleExecutable</key>          <string>${APP}</string>
+    <key>CFBundleIconFile</key>            <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>      <string>14.0</string>
     <!-- Accessory app: no Dock icon, non-activating (matches setActivationPolicy(.accessory)). -->
     <key>LSUIElement</key>                 <true/>

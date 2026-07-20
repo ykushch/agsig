@@ -34,6 +34,11 @@ final class NotchViewModel {
     var selectedInteraction: PendingInteraction? {
         interactions.selectedState?.interaction
     }
+    var selectedInteractionSizingIdentity: String? {
+        guard let selectedPaneID else { return nil }
+        let fingerprint = selectedInteraction?.fingerprint.rawValue ?? "none"
+        return "\(selectedPaneID):\(fingerprint)"
+    }
 
     var attentionItems: [InteractionAttentionDisplayModel] {
         attentionItems(at: Date())

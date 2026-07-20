@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ExpandedNotchSurface: View {
     @Bindable var model: NotchViewModel
+    @Bindable var surface: NotchSurfaceState
     let presentation: NotchPresentation
     let snapshot: NotchDisplaySnapshot
     let topInset: CGFloat
@@ -26,6 +27,24 @@ struct ExpandedNotchSurface: View {
         }
         .padding(.top, topInset > 0 ? topInset + 5 : 8)
         .foregroundStyle(.white)
+        .onPreferenceChange(NotchHeightPreferenceKey.self, perform: applyMeasuredHeights)
+    }
+
+    private var chromeHeight: CGFloat {
+        (topInset > 0 ? topInset + 5 : 8) + 39
+    }
+
+    private func applyMeasuredHeights(_ heights: [NotchMeasuredRegion: CGFloat]) {
+        if presentation == .overview, let content = heights[.overviewContent] {
+            surface.reportOverviewHeight(chromeHeight + content)
+        } else if presentation.isFocused,
+                  let identity = model.selectedInteractionSizingIdentity,
+                  let content = heights[.focusedContent] {
+            surface.reportFocusedHeight(
+                chromeAndContentHeight: chromeHeight + content,
+                shelfHeight: heights[.actionShelf] ?? 0,
+                identity: identity)
+        }
     }
 }
 
@@ -93,7 +112,7 @@ private struct NotchOverviewSurface: View {
                         systemImage: "terminal",
                         description: Text("Start an agent under herdr and it will appear here."))
                     .foregroundStyle(NotchPalette.secondaryText)
-                    .frame(maxWidth: .infinity, minHeight: 220)
+                    .frame(maxWidth: .infinity, minHeight: 140)
                 }
                 if model.accessibilityMissing {
                     StatusBanner(
@@ -103,6 +122,7 @@ private struct NotchOverviewSurface: View {
                 }
             }
             .padding(14)
+            .reportNotchHeight(.overviewContent)
         }
     }
 }
@@ -126,6 +146,7 @@ private struct NotchFocusedSurface: View {
                     }
                 }
                 .padding(14)
+                .reportNotchHeight(.focusedContent)
             }
             if let state = model.selectedInteractionState {
                 Divider().overlay(NotchPalette.hairline)
@@ -135,10 +156,12 @@ private struct NotchFocusedSurface: View {
                         interaction: interaction,
                         phase: state.phase)
                         .id(interaction.fingerprint.rawValue)
+                        .reportNotchHeight(.actionShelf)
                 } else if state.phase != .reading {
                     TerminalFallbackShelf(
                         model: model,
                         warning: "No structured prompt was detected. Drive the selected terminal manually.")
+                        .reportNotchHeight(.actionShelf)
                 }
             }
         }

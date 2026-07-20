@@ -17,7 +17,7 @@ final class MenuBarController: NSObject {
 
     func install() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "bell.badge", accessibilityDescription: "Notch Agent")
+        item.button?.image = MenuBarIcon.image()
         let menu = NSMenu()
         let toggle = NSMenuItem(title: "Show / Hide Notch", action: #selector(toggleNotch), keyEquivalent: "")
         toggle.target = self; menu.addItem(toggle)

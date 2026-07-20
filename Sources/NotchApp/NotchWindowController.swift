@@ -61,7 +61,12 @@ final class NotchWindowController {
     private func observePresentation() {
         withObservationTracking {
             _ = viewModel.presentation
+            _ = viewModel.selectedInteractionSizingIdentity
+            _ = viewModel.agentCount
+            _ = viewModel.connection
+            _ = viewModel.accessibilityMissing
             _ = settings.displayPlacement
+            _ = surfaceState.requestedExpandedHeight
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.configureScreenPolling()
@@ -98,6 +103,7 @@ final class NotchWindowController {
             MainActor.assumeIsolated {
                 self?.surfaceState.reduceMotion =
                     NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                self?.applyPresentation()
             }
         }
     }
@@ -157,9 +163,36 @@ final class NotchWindowController {
         if surfaceState.geometry != geometry {
             var transaction = Transaction(animation: nil)
             transaction.disablesAnimations = true
-            withTransaction(transaction) { surfaceState.geometry = geometry }
+            withTransaction(transaction) { surfaceState.updateGeometry(geometry) }
         }
-        transition(to: viewModel.presentation, on: screen, geometry: geometry)
+        let target = viewModel.presentation
+        prepareAdaptiveHeight(for: target, geometry: geometry)
+        transition(to: target, on: screen, geometry: geometry)
+    }
+
+    private func prepareAdaptiveHeight(
+        for target: NotchPresentation,
+        geometry: NotchGeometry
+    ) {
+        switch target {
+        case .compact:
+            break
+        case .overview:
+            let bannerCount = (viewModel.connection == .unavailable ? 1 : 0)
+                + (viewModel.accessibilityMissing ? 1 : 0)
+            surfaceState.prepareOverview(estimatedHeight: geometry.overviewHeight(
+                agentCount: viewModel.agentCount,
+                bannerCount: bannerCount))
+        case .focused:
+            guard let identity = viewModel.selectedInteractionSizingIdentity else { return }
+            let interaction = viewModel.selectedInteraction
+            surfaceState.prepareFocused(
+                identity: identity,
+                estimatedHeight: geometry.focusedHeight(
+                    choiceCount: interaction?.choices.count ?? 0,
+                    hasEvidence: interaction?.contentEvidence != nil,
+                    hasActionShelf: viewModel.selectedInteractionState != nil))
+        }
     }
 
     private func transition(
@@ -171,19 +204,43 @@ final class NotchWindowController {
         let revision = transitionRevision
 
         if target.isExpanded {
-            let frame = geometry.panelFrame(on: screen.frame, expanded: true)
-            setPanelFrame(frame)
+            let targetSize = surfaceState.requestedExpandedSize
+            let currentHeight = surfaceState.renderedExpandedHeight
+            let isGrowing = targetSize.height >= currentHeight
+            if isGrowing {
+                setPanelFrame(geometry.panelFrame(on: screen.frame, size: targetSize))
+            }
             panel.isInteractive = true
 
-            guard surfaceState.presentation != target else { return }
-            let applyTarget = { [surfaceState] in surfaceState.presentation = target }
+            guard surfaceState.presentation != target
+                    || NotchGeometry.materiallyDifferent(currentHeight, targetSize.height)
+            else {
+                setPanelFrame(geometry.panelFrame(on: screen.frame, size: targetSize))
+                return
+            }
+            let applyTarget = { [surfaceState] in
+                surfaceState.presentation = target
+                surfaceState.setRenderedExpandedHeight(targetSize.height)
+            }
             guard let animation = surfaceState.animation else {
                 applyTarget()
+                setPanelFrame(geometry.panelFrame(on: screen.frame, size: targetSize))
                 return
             }
 
-            if surfaceState.presentation.isExpanded {
-                withAnimation(.easeInOut(duration: 0.18), applyTarget)
+            let finishShrink = { [weak self] in
+                guard let self, self.transitionRevision == revision,
+                      self.viewModel.presentation == target else { return }
+                self.setPanelFrame(geometry.panelFrame(on: screen.frame, size: targetSize))
+            }
+            if surfaceState.presentation.isExpanded || !isGrowing {
+                withAnimation(.easeInOut(duration: 0.2), completionCriteria: .logicallyComplete) {
+                    applyTarget()
+                } completion: {
+                    Task { @MainActor in
+                        if !isGrowing { finishShrink() }
+                    }
+                }
             } else {
                 Task { @MainActor [weak self] in
                     await Task.yield()

@@ -31,6 +31,7 @@ struct PlaceholderNotchView: View {
                     let snapshot = model.displaySnapshot(at: context.date)
                     ExpandedNotchSurface(
                         model: model,
+                        surface: surface,
                         presentation: surface.presentation,
                         snapshot: snapshot,
                         topInset: surface.geometry.topContentInset)
