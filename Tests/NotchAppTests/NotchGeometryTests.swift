@@ -18,8 +18,8 @@ struct NotchGeometryTests {
         let geometry = NotchGeometry(metrics: metrics)
 
         #expect(NotchGeometry.physicalNotchWidth(metrics: metrics) == 200)
-        #expect(geometry.compactSize.width == 208)
-        #expect(geometry.compactSize.height == 50)
+        #expect(geometry.compactSize(revealed: false) == CGSize(width: 208, height: 35))
+        #expect(geometry.compactSize(revealed: true) == CGSize(width: 208, height: 44))
         #expect(geometry.topContentInset == 32)
     }
 
@@ -32,7 +32,7 @@ struct NotchGeometryTests {
             auxiliaryTopLeftArea: CGRect(x: 0, y: 950, width: 656, height: 32),
             auxiliaryTopRightArea: CGRect(x: 856, y: 950, width: 656, height: 32))
 
-        #expect(NotchGeometry(metrics: metrics).compactSize.width == 208)
+        #expect(NotchGeometry(metrics: metrics).compactWidth == 208)
     }
 
     @Test("External displays use the compact floating fallback")
@@ -44,7 +44,8 @@ struct NotchGeometryTests {
 
         let geometry = NotchGeometry(metrics: metrics)
 
-        #expect(geometry.compactSize == CGSize(width: 190, height: 30))
+        #expect(geometry.compactSize(revealed: false) == CGSize(width: 190, height: 3))
+        #expect(geometry.compactSize(revealed: true) == CGSize(width: 190, height: 12))
         #expect(geometry.topContentInset == 0)
     }
 
@@ -56,11 +57,16 @@ struct NotchGeometryTests {
             safeAreaTop: 0))
 
         let compact = geometry.panelFrame(on: screenFrame, expanded: false)
+        let revealed = geometry.panelFrame(
+            on: screenFrame, expanded: false, compactRevealed: true)
         let expanded = geometry.panelFrame(on: screenFrame, expanded: true)
 
         #expect(compact.maxY == screenFrame.maxY)
         #expect(expanded.maxY == screenFrame.maxY)
         #expect(compact.midX == screenFrame.midX)
+        #expect(revealed.maxY == screenFrame.maxY)
+        #expect(revealed.midX == screenFrame.midX)
+        #expect(revealed.height == 12)
         #expect(expanded.midX == screenFrame.midX)
     }
 

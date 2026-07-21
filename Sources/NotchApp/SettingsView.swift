@@ -11,7 +11,6 @@ struct SettingsView: View {
                 Text("Default / active").tag("")
                 ForEach(availableSessions, id: \.self) { Text($0).tag($0) }
             }
-            Toggle("Auto-expand when blocked", isOn: $settings.autoExpandOnBlocked)
             Toggle("Auto-expand when done", isOn: $settings.autoExpandOnDone)
             Toggle("Enable sounds", isOn: $settings.soundEnabled)
             Toggle("Respect Do Not Disturb", isOn: $settings.respectDND)
@@ -22,6 +21,12 @@ struct SettingsView: View {
                 ForEach(DisplayPlacement.allCases) { Text($0.displayName).tag($0) }
             }
             Text(displayPlacementHelp)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker("Compact indicator", selection: $settings.compactIndicatorMode) {
+                ForEach(CompactIndicatorMode.allCases) { Text($0.displayName).tag($0) }
+            }
+            Text("Reveal on hover keeps a minimal status line visible until you point at it.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Toggle("Launch at login", isOn: $settings.launchAtLogin)

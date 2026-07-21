@@ -8,11 +8,18 @@ struct PlaceholderNotchView: View {
     @Bindable var surface: NotchSurfaceState
 
     private var isCompact: Bool { surface.presentation == .compact }
+    private var isCompactRevealed: Bool { surface.isCompactIndicatorRevealed }
     private var isAttachedToNotch: Bool { surface.geometry.topContentInset > 0 }
+    private var compactBottomRadius: CGFloat {
+        // Preserve the notch silhouette in both compact heights. A radius equal
+        // to the revealed lip height pulls the lower left and right edges inward
+        // instead of leaving a square black extension below the hardware notch.
+        isAttachedToNotch ? 12 : (isCompactRevealed ? 10 : 2)
+    }
     private var shellShape: NotchSurfaceShape {
         NotchSurfaceShape(
             topRadius: isAttachedToNotch ? 0 : (isCompact ? 6 : 12),
-            bottomRadius: isCompact ? 14 : 22)
+            bottomRadius: isCompact ? compactBottomRadius : 22)
     }
 
     var body: some View {
@@ -21,7 +28,10 @@ struct PlaceholderNotchView: View {
                 .fill(NotchPalette.surface)
                 .overlay(shellShape.stroke(NotchPalette.hairline, lineWidth: 1))
 
-            CompactNotchSummary(model: model, topInset: surface.geometry.topContentInset)
+            CompactNotchSummary(
+                model: model,
+                surface: surface,
+                topInset: surface.geometry.topContentInset)
                 .opacity(isCompact ? 1 : 0)
                 .scaleEffect(isCompact ? 1 : 0.92, anchor: .top)
                 .allowsHitTesting(isCompact)
@@ -50,34 +60,43 @@ struct PlaceholderNotchView: View {
             radius: 20,
             y: 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onHover(perform: surface.setCompactHovering)
         .onExitCommand(perform: model.collapse)
     }
 }
 
 private struct CompactNotchSummary: View {
     @Bindable var model: NotchViewModel
+    @Bindable var surface: NotchSurfaceState
     let topInset: CGFloat
 
     var body: some View {
         Button(action: model.toggle) {
             VStack(spacing: 0) {
                 Spacer(minLength: topInset)
-                HStack(spacing: 5) {
-                    HerdrBrandMark()
-                        .frame(width: 11, height: 11)
-                        .foregroundStyle(.white.opacity(0.62))
-                    Circle()
+                if surface.isCompactIndicatorRevealed {
+                    HStack(spacing: 5) {
+                        HerdrBrandMark()
+                            .frame(width: 9, height: 9)
+                            .foregroundStyle(.white.opacity(0.62))
+                        Circle()
+                            .fill(NotchPalette.status(model.overallStatus))
+                            .frame(width: 5, height: 5)
+                        Text(model.attentionCount > 0
+                            ? "\(model.attentionCount)"
+                            : "\(model.agentCount)")
+                            .font(.system(size: 8, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .monospacedDigit()
+                    }
+                    .frame(maxHeight: .infinity, alignment: .center)
+                    .padding(.horizontal, 8)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                } else {
+                    Capsule()
                         .fill(NotchPalette.status(model.overallStatus))
-                        .frame(width: 6, height: 6)
-                    Text(model.attentionCount > 0
-                        ? "\(model.attentionCount) waiting"
-                        : "\(model.agentCount) agents")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.82))
-                        .monospacedDigit()
+                        .frame(width: 34, height: 3)
                 }
-                .frame(maxHeight: .infinity, alignment: .center)
-                .padding(.horizontal, 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())

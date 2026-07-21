@@ -52,24 +52,38 @@ enum DisplayPlacement: String, CaseIterable, Identifiable {
     }
 }
 
+enum CompactIndicatorMode: String, CaseIterable, Identifiable {
+    case revealOnHover
+    case alwaysShow
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .revealOnHover: "Reveal on hover"
+        case .alwaysShow: "Always show"
+        }
+    }
+}
+
 @Observable @MainActor
 final class Settings {
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     var socketPathOverride: String? { didSet { defaults.set(socketPathOverride, forKey: Keys.socketPathOverride) } }
     var sessionName: String? { didSet { defaults.set(sessionName, forKey: Keys.sessionName) } }
-    var autoExpandOnBlocked: Bool { didSet { defaults.set(autoExpandOnBlocked, forKey: Keys.autoExpandOnBlocked) } }
     var autoExpandOnDone: Bool { didSet { defaults.set(autoExpandOnDone, forKey: Keys.autoExpandOnDone) } }
     var soundEnabled: Bool { didSet { defaults.set(soundEnabled, forKey: Keys.soundEnabled) } }
     var soundPack: String { didSet { defaults.set(soundPack, forKey: Keys.soundPack) } }
     var respectDND: Bool { didSet { defaults.set(respectDND, forKey: Keys.respectDND) } }
     var hotkeyModifier: HotkeyModifier { didSet { defaults.set(hotkeyModifier.rawValue, forKey: Keys.hotkeyModifier) } }
     var displayPlacement: DisplayPlacement { didSet { defaults.set(displayPlacement.rawValue, forKey: Keys.displayPlacement) } }
+    var compactIndicatorMode: CompactIndicatorMode { didSet { defaults.set(compactIndicatorMode.rawValue, forKey: Keys.compactIndicatorMode) } }
     var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin); LoginItem.setEnabled(launchAtLogin) } }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         socketPathOverride = defaults.string(forKey: Keys.socketPathOverride)
         sessionName = defaults.string(forKey: Keys.sessionName)
-        autoExpandOnBlocked = defaults.object(forKey: Keys.autoExpandOnBlocked) as? Bool ?? true
         autoExpandOnDone = defaults.object(forKey: Keys.autoExpandOnDone) as? Bool ?? false
         soundEnabled = defaults.object(forKey: Keys.soundEnabled) as? Bool ?? true
         soundPack = defaults.string(forKey: Keys.soundPack) ?? "default"
@@ -77,6 +91,8 @@ final class Settings {
         hotkeyModifier = HotkeyModifier(rawValue: defaults.string(forKey: Keys.hotkeyModifier) ?? "") ?? .controlOption
         displayPlacement = DisplayPlacement(
             rawValue: defaults.string(forKey: Keys.displayPlacement) ?? "") ?? .notchDisplay
+        compactIndicatorMode = CompactIndicatorMode(
+            rawValue: defaults.string(forKey: Keys.compactIndicatorMode) ?? "") ?? .revealOnHover
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
     }
 
@@ -91,13 +107,13 @@ final class Settings {
     private enum Keys {
         static let socketPathOverride = "socketPathOverride"
         static let sessionName = "sessionName"
-        static let autoExpandOnBlocked = "autoExpandOnBlocked"
         static let autoExpandOnDone = "autoExpandOnDone"
         static let soundEnabled = "soundEnabled"
         static let soundPack = "soundPack"
         static let respectDND = "respectDND"
         static let hotkeyModifier = "hotkeyModifier"
         static let displayPlacement = "displayPlacement"
+        static let compactIndicatorMode = "compactIndicatorMode"
         static let launchAtLogin = "launchAtLogin"
     }
 }

@@ -24,10 +24,15 @@ final class NotchWindowController {
         self.settings = settings
         let screen = Self.preferredScreen(for: settings.displayPlacement)
         let geometry = NotchGeometry(metrics: NotchScreenMetrics(screen: screen))
-        let frame = geometry.panelFrame(on: screen.frame, expanded: false)
+        let compactRevealed = settings.compactIndicatorMode == .alwaysShow
+        let frame = geometry.panelFrame(
+            on: screen.frame,
+            expanded: false,
+            compactRevealed: compactRevealed)
         let surfaceState = NotchSurfaceState(
             geometry: geometry,
-            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+            reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+            compactIndicatorMode: settings.compactIndicatorMode)
         self.surfaceState = surfaceState
         panel = NotchPanel(contentRect: frame)
         hostingView = NSHostingView(rootView: PlaceholderNotchView(
@@ -66,6 +71,8 @@ final class NotchWindowController {
             _ = viewModel.connection
             _ = viewModel.accessibilityMissing
             _ = settings.displayPlacement
+            _ = settings.compactIndicatorMode
+            _ = surfaceState.isCompactIndicatorRevealed
             _ = surfaceState.requestedExpandedHeight
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -160,6 +167,7 @@ final class NotchWindowController {
         let screen = explicitScreen ?? Self.screen(
             numbered: currentScreenNumber) ?? Self.preferredScreen(for: settings.displayPlacement)
         let geometry = NotchGeometry(metrics: NotchScreenMetrics(screen: screen))
+        surfaceState.updateCompactIndicatorMode(settings.compactIndicatorMode)
         if surfaceState.geometry != geometry {
             var transaction = Transaction(animation: nil)
             transaction.disablesAnimations = true
@@ -204,6 +212,7 @@ final class NotchWindowController {
         let revision = transitionRevision
 
         if target.isExpanded {
+            surfaceState.clearCompactHover()
             let targetSize = surfaceState.requestedExpandedSize
             let currentHeight = surfaceState.renderedExpandedHeight
             let isGrowing = targetSize.height >= currentHeight
@@ -278,12 +287,26 @@ final class NotchWindowController {
         geometry: NotchGeometry
     ) {
         guard transitionRevision == revision, !viewModel.isExpanded else { return }
-        setPanelFrame(geometry.panelFrame(on: screen.frame, expanded: false))
+        let frame = geometry.panelFrame(
+            on: screen.frame,
+            expanded: false,
+            compactRevealed: surfaceState.isCompactIndicatorRevealed)
+        setPanelFrame(
+            frame,
+            animated: !surfaceState.reduceMotion && surfaceState.presentation == .compact)
     }
 
-    private func setPanelFrame(_ frame: CGRect) {
+    private func setPanelFrame(_ frame: CGRect, animated: Bool = false) {
         guard !NSEqualRects(panel.frame, frame) else { return }
-        panel.setFrame(frame, display: true, animate: false)
+        guard animated else {
+            panel.setFrame(frame, display: true, animate: false)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(frame, display: true)
+        }
     }
 
     private static func preferredScreen(for placement: DisplayPlacement) -> NSScreen {

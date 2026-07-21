@@ -298,7 +298,6 @@ final class NotchViewModel {
                 soundEngine?.play(.done)
             }
             if !transitions.newlyBlockedPaneIDs.isEmpty,
-               settings?.autoExpandOnBlocked ?? true,
                let target = interactions.attentionOrder.first {
                 await surfaceBlockedPane(target)
             }
@@ -346,7 +345,7 @@ final class NotchViewModel {
             self.synchronizePresentationAfterInteractionReconcile(
                 selectedBefore: selectedBefore)
             self.handleSelectedPaneResolutionIfNeeded()
-            if didBlock, self.settings?.autoExpandOnBlocked ?? true,
+            if didBlock,
                let target = self.interactions.attentionOrder.first {
                 await self.surfaceBlockedPane(target)
             }
