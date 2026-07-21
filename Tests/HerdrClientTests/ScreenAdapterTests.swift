@@ -220,6 +220,46 @@ struct ClaudeScreenAdapterRegressionTests {
         }
     }
 
+    @Test("latest Claude prompt excludes noisy detection scrollback")
+    func latestPromptRegion() throws {
+        let prompt = Fixtures.string("prompts/generic-permission-detection.txt")
+        let noisy = """
+        31 status: "..."       # optional
+        32 ---
+        33 ```
+
+        1. Earlier generated documentation item
+        2. Another generated documentation item
+
+        \(prompt)
+        """
+        let classifier = PromptClassifier()
+        let expected = classifier.classifyInteraction(
+            paneID: "fixture", agent: "claude", text: prompt)
+        let interaction = classifier.classifyInteraction(
+            paneID: "fixture", agent: "claude", text: noisy)
+
+        #expect(interaction.kind == .approval)
+        #expect(interaction.title == expected.title)
+        #expect(interaction.body == expected.body)
+        #expect(interaction.choices == expected.choices)
+        #expect(interaction.body?.contains("status") == false)
+        #expect(interaction.evidence.capturedText == noisy)
+
+        let titleRange = try #require(prompt.range(of: "Do you want to allow"))
+        let barePrompt = prompt[titleRange.lowerBound...]
+        let afterOutput = """
+        Last generated CLAUDE.md line that must not become approval context.
+        ────────────────────────────────────────────────────────────
+        \(barePrompt)
+        """
+        let bareInteraction = classifier.classifyInteraction(
+            paneID: "fixture", agent: "claude", text: afterOutput)
+        #expect(bareInteraction.title == "Do you want to allow this action?")
+        #expect(bareInteraction.body == nil)
+        #expect(bareInteraction.choices == expected.choices)
+    }
+
     @Test("captured Claude edit approval exposes a typed diff")
     func capturedEditDiff() throws {
         let directory = Fixtures.url(
@@ -234,6 +274,7 @@ struct ClaudeScreenAdapterRegressionTests {
         #expect(interaction.kind == .approval)
         #expect(interaction.title == "Do you want to make this edit to sample.txt?")
         #expect(interaction.presentation.mechanism == .arrowNavigate)
+        #expect(InteractionDisplayModel(interaction: interaction).choicesAreActionable)
         #expect(interaction.choices.map(\.label) == metadata.annotations.optionLabels)
         guard case .diff(let diff) = interaction.contentEvidence else {
             Issue.record("missing typed diff evidence")

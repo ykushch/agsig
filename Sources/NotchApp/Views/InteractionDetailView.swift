@@ -213,7 +213,7 @@ struct InteractionDetailView: View {
                 }
             }
             Spacer(minLength: 0)
-            if choice.index < 9 {
+            if display.choicesAreActionable, choice.index < 9 {
                 Text("\(hotkeySymbols)\(choice.index + 1)")
                     .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.42))

@@ -61,12 +61,19 @@ public struct InteractionDisplayModel: Sendable, Equatable {
             && interaction.presentation.mechanism != .textEntry
             && interaction.kind == .question
         let isNative = interaction.evidence.source == .native
-        choicesAreActionable = (isNative
-            || (interaction.presentation.mechanism != .ambiguous
-            && interaction.presentation.mechanism != .manual
+        let executableScreenChoices: Bool = switch interaction.presentation.mechanism {
+        case .numberedShortcut:
+            true
+        case .explicitShortcut:
+            interaction.choices.allSatisfy { !$0.shortcutKeys.isEmpty }
+        case .arrowNavigate, .multiSelect:
+            interaction.presentation.selectedChoiceIndex != nil
+        case .textEntry, .ambiguous, .manual:
+            false
+        }
+        choicesAreActionable = (isNative || executableScreenChoices)
             && (interaction.capabilities.contains(.selectOne)
-                || interaction.capabilities.contains(.selectMany))))
-            && interaction.kind != .approval
+                || interaction.capabilities.contains(.selectMany))
         showsCancel = interaction.capabilities.contains(.deny)
         showsManualControls = true
         exposesStructuredSubmit = isNative

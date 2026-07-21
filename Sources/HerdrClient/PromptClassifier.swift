@@ -123,12 +123,55 @@ public struct PromptClassifier: Sendable {
         return output
     }
 
+    /// Bounds Claude parsing to the newest choice block instead of treating the
+    /// whole detection screen (which can include scrollback) as prompt content.
+    static func latestInteractionRegion(_ text: String) -> String? {
+        let lines = text.split(
+            separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard let firstOption = lines.lastIndex(where: {
+            parseOptionLine($0)?.number == 1
+        }), let titleIndex = questionTitleIndex(in: lines, before: firstOption) else {
+            return nil
+        }
+
+        var startIndex = titleIndex
+        let titleIsApproval = lines[titleIndex].lowercased().contains("do you want to")
+        if !titleIsApproval, let wizardIndex = lines.indices.last(where: {
+            $0 < titleIndex && isWizardLine(lines[$0])
+        }) {
+            startIndex = wizardIndex
+        } else if let ruleIndex = lines.indices.last(where: {
+            $0 < titleIndex && isPromptRule(lines[$0])
+        }) {
+            if trimmedRule(lines[ruleIndex]).allSatisfy({ $0 == "╌" }),
+               let openingRule = lines.indices.last(where: {
+                   $0 < ruleIndex && trimmedRule(lines[$0]).count >= 8
+                       && trimmedRule(lines[$0]).allSatisfy { $0 == "╌" }
+               }) {
+                startIndex = max(lines.startIndex, openingRule - 2)
+            } else {
+                let hasCardBody = lines[(ruleIndex + 1)..<titleIndex].contains {
+                    !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                startIndex = hasCardBody
+                    ? max(lines.startIndex, ruleIndex - 1) : titleIndex
+            }
+        }
+        return lines[startIndex...].joined(separator: "\n")
+    }
+
     static func parseQuestionTitle(_ text: String) -> String? {
         let lines = text.split(
             separator: "\n", omittingEmptySubsequences: false).map(String.init)
         guard let firstOption = lines.firstIndex(where: isOptionLine) else {
             return nil
         }
+        return questionTitleIndex(in: lines, before: firstOption).map { lines[$0]
+            .trimmingCharacters(in: .whitespaces) }
+    }
+
+    private static func questionTitleIndex(in lines: [String], before firstOption: Int)
+        -> Int? {
         guard firstOption > 0 else { return nil }
         for index in stride(from: firstOption - 1, through: 0, by: -1) {
             let value = lines[index].trimmingCharacters(in: .whitespaces)
@@ -140,9 +183,24 @@ public struct PromptClassifier: Sendable {
                value.contains("□") || value.contains("☒") || value.contains("☑") {
                 continue
             }
-            return value
+            return index
         }
         return nil
+    }
+
+    private static func isWizardLine(_ line: String) -> Bool {
+        line.contains("Submit")
+            && (line.contains("□") || line.contains("☒") || line.contains("☑"))
+    }
+
+    private static func isPromptRule(_ line: String) -> Bool {
+        let value = trimmedRule(line)
+        return value.count >= 8
+            && value.allSatisfy { $0 == "─" || $0 == "╌" || $0 == "—" }
+    }
+
+    private static func trimmedRule(_ line: String) -> String {
+        line.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func parseNumberedOptions(_ text: String) -> [ParsedTerminalOption] {
@@ -213,6 +271,7 @@ public struct PromptClassifier: Sendable {
     }
 
     private struct ParsedOption {
+        let number: Int
         let label: String
         let selected: Bool
         let checked: Bool?
@@ -231,7 +290,8 @@ public struct PromptClassifier: Sendable {
         }
         guard let dot = value.firstIndex(of: "."),
               value.first?.isNumber == true,
-              value.distance(from: value.startIndex, to: dot) == 1 else {
+              value.distance(from: value.startIndex, to: dot) == 1,
+              let number = Int(value[..<dot]) else {
             return nil
         }
         var label = String(value[value.index(after: dot)...])
@@ -255,6 +315,7 @@ public struct PromptClassifier: Sendable {
                 .trimmingCharacters(in: .whitespaces)
         }
         guard !label.isEmpty else { return nil }
-        return ParsedOption(label: label, selected: selected, checked: checked)
+        return ParsedOption(number: number, label: label,
+                            selected: selected, checked: checked)
     }
 }

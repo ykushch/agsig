@@ -105,7 +105,10 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
     public init() {}
 
     public func parse(_ input: ScreenAdapterInput) -> PendingInteraction {
-        let text = input.normalizedDetectionText
+        let capturedText = input.normalizedDetectionText
+        guard let text = PromptClassifier.latestInteractionRegion(capturedText) else {
+            return GenericScreenAdapter().parse(input)
+        }
         let low = text.lowercased()
         guard Self.blockMarkers.contains(where: low.contains) else {
             return GenericScreenAdapter().parse(input)
@@ -171,7 +174,7 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
             evidence: InteractionEvidence(
                 source: .screen, providerID: adapterID,
                 agentID: input.agentID, paneRevision: input.revisionAsInt,
-                confidence: .exact, capturedText: text),
+                confidence: .exact, capturedText: capturedText),
             contentEvidence: Self.parseDiffEvidence(text))
     }
 

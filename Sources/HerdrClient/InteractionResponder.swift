@@ -207,7 +207,7 @@ public struct InteractionResponder: InteractionResponding, Sendable {
         let supported: Bool = switch kind {
         case .approval:
             switch intent {
-            case .approve, .deny: true
+            case .selectChoice, .approve, .deny: true
             default: false
             }
         case .question:

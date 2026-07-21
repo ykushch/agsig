@@ -261,7 +261,7 @@ struct InteractionDisplayModelTests {
 
         let approval = display(
             "codex-command-approval-explicit-shortcuts-0e257cdd8f3b.fixture")
-        #expect(!approval.choicesAreActionable)
+        #expect(approval.choicesAreActionable)
         #expect(approval.showsCancel)
         #expect(approval.exposesStructuredSubmit)
         #expect(approval.approvalOnceAvailable)
@@ -271,6 +271,16 @@ struct InteractionDisplayModelTests {
 
         #expect(!question.approvalOnceAvailable)
         #expect(question.approvalPersistChoiceIndex == nil)
+
+        let ambiguousApproval = PendingInteraction(
+            paneID: "w1:p2", kind: .approval, title: "Run command?",
+            choices: [InteractionChoice(label: "Allow")],
+            presentation: InteractionPresentation(mechanism: .ambiguous),
+            capabilities: [.approve, .deny, .selectOne],
+            evidence: InteractionEvidence(
+                source: .screen, providerID: "test", confidence: .fallback))
+        #expect(!InteractionDisplayModel(
+            interaction: ambiguousApproval).choicesAreActionable)
     }
 
     @Test("attention rows surface prompt, phases, stale drafts, errors, and accessibility")

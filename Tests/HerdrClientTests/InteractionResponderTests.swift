@@ -117,6 +117,29 @@ struct InteractionResponderTests {
             == ["down", "down", "enter"])
     }
 
+    @Test("Claude approval choices use the revalidating responder path")
+    func claudeApprovalChoiceIsSafelyAnswerable() async throws {
+        let text = Fixtures.string(
+            "claude-interactions/claude-edit-approval-diff-982df03912ba.fixture/detection.txt")
+        let interaction = PromptClassifier().classifyInteraction(
+            paneID: "w1:p1", agent: "claude", text: text)
+        #expect(interaction.kind == .approval)
+        #expect(interaction.presentation.mechanism == .arrowNavigate)
+        let provider = ScriptedInteractionProvider([interaction])
+        let client = MockClient()
+
+        _ = try await responder(provider: provider, client: client).respond(
+            InteractionResponseRequest(
+                paneID: "w1:p1", agentID: "claude", paneRevision: 1,
+                expectedFingerprint: interaction.fingerprint,
+                intent: .selectChoice(1)))
+
+        #expect(await provider.readCount == 1)
+        #expect(client.recorded.count == 1)
+        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue)
+            == ["down", "enter"])
+    }
+
     @Test("responder owns redraw settling and returns the stable next question")
     func settlesNextQuestion() async throws {
         let current = question(title: "Question one", cursor: 0)
