@@ -11,7 +11,7 @@ hydrates from snapshots, reconciles agent state continuously, and treats events 
 an accelerator. The UI stays thin and every response remains explicitly user-driven.
 
 <p align="center">
-  <img src="Docs/img/04-agent-blocked-state-question.png" width="820" alt="NotchAgent showing a blocked Claude agent with four response choices">
+  <img src="Docs/img/notch-demo.gif" width="820" alt="NotchAgent demo: the notch reveals a waiting agent, expands to the blocked question with response choices, and steps through a multi-part question">
 </p>
 
 ## What it does
