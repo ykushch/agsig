@@ -23,7 +23,8 @@ let package = Package(
         .executableTarget(
             name: "NotchApp",
             dependencies: ["HerdrClient"],
-            exclude: ["README.md"]
+            exclude: ["README.md"],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "HerdrClientTests",

@@ -47,6 +47,14 @@ mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 cp "$BIN" "$OUT/Contents/MacOS/${APP}"
 # App icon: regenerate with `swift scripts/generate-app-icon.swift`.
 cp Assets/AppIcon.icns "$OUT/Contents/Resources/AppIcon.icns"
+# Keep the SwiftPM target resource bundle in the standard signed resource area.
+# HerdrBrandMark also checks beside the executable for the `swift run` layout.
+RESOURCE_BUNDLE="$(dirname "$BIN")/NotchAgent_NotchApp.bundle"
+if [[ ! -d "$RESOURCE_BUNDLE" ]]; then
+    echo "Missing SwiftPM resource bundle: $RESOURCE_BUNDLE" >&2
+    exit 1
+fi
+cp -R "$RESOURCE_BUNDLE" "$OUT/Contents/Resources/"
 
 cat > "$OUT/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

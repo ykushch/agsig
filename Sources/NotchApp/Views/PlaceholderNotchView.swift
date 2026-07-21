@@ -63,6 +63,9 @@ private struct CompactNotchSummary: View {
             VStack(spacing: 0) {
                 Spacer(minLength: topInset)
                 HStack(spacing: 5) {
+                    HerdrBrandMark()
+                        .frame(width: 11, height: 11)
+                        .foregroundStyle(.white.opacity(0.62))
                     Circle()
                         .fill(NotchPalette.status(model.overallStatus))
                         .frame(width: 6, height: 6)
