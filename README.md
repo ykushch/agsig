@@ -1,14 +1,46 @@
 # NotchAgent
 
 A native macOS notch control surface for AI coding agents running under
-[herdr](https://herdr.dev), driven from Ghostty. **Monitor, approve/deny, answer,
-and jump to** your agents from the MacBook notch — without hunting through
-terminal panes for the one that's blocked.
+[herdr](https://herdr.dev) in Ghostty. **Monitor, approve or deny, answer, and
+jump to** your agents from the MacBook notch — without hunting through terminal
+panes for the one that needs you.
 
 herdr is the state authority (it normalizes 15+ agents into one status model and
 a JSON socket API); this app is a **socket client + notch `NSPanel` UI**. The core
 hydrates from snapshots, reconciles agent state continuously, and treats events as
 an accelerator. The UI stays thin and every response remains explicitly user-driven.
+
+<p align="center">
+  <img src="Docs/img/04-agent-blocked-state-question.png" width="820" alt="NotchAgent showing a blocked Claude agent with four response choices">
+</p>
+
+## What it does
+
+- Shows a minimal color-coded status line below the notch, revealing the agent
+  count on hover or keeping it visible if you prefer.
+- Opens the relevant interaction when an agent becomes blocked and needs input.
+- Collects every herdr session in one overview with status, prompt, elapsed time,
+  and a direct jump back to its Ghostty pane.
+- Turns supported approvals and questions into explicit, clickable actions while
+  preserving a terminal fallback for anything uncertain.
+- Supports display placement, global hotkeys, sounds, Do Not Disturb, and launch
+  at login without adding a Dock icon.
+
+## Screenshots
+
+| Minimal blocked indicator | Agent count on hover |
+| --- | --- |
+| <img src="Docs/img/01-blocked-state.png" alt="Minimal red blocked status line beneath the MacBook notch"> | <img src="Docs/img/02-blocked-state-hover.png" alt="Expanded compact indicator showing the herdr mark, blocked status, and one agent"> |
+
+### See every agent at a glance
+
+![NotchAgent overview showing one blocked Claude session and one idle Claude session](Docs/img/03-agents-summary-view.png)
+
+### Configure the experience
+
+<p align="center">
+  <img src="Docs/img/05-notch-agent-menu.png" width="620" alt="NotchAgent settings for sessions, sounds, hotkeys, display placement, compact indicator behavior, and launch at login">
+</p>
 
 ## Requirements
 
@@ -25,14 +57,11 @@ With Homebrew:
 brew install --cask ykushch/tap/notchagent
 ```
 
-Because the release is ad-hoc signed rather than notarized, macOS may block its
-first launch. Right-click the installed app and choose **Open**, or remove its
-quarantine attribute with the command below.
-
 Alternatively, download `NotchApp-<version>.zip` from GitHub Releases, extract
-it, and move `NotchApp.app` to `/Applications`. Because release bundles are
-ad-hoc signed rather than notarized, first launch requires right-clicking the app
-and choosing **Open**, or removing quarantine explicitly:
+it, and move `NotchApp.app` to `/Applications`.
+
+Release bundles are ad-hoc signed rather than notarized, so macOS may block the
+first launch. Right-click the app and choose **Open**, or remove quarantine:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/NotchApp.app
@@ -140,8 +169,9 @@ swift run NotchApp
 ```
 
 Runs as an **accessory app** (no Dock icon, never steals focus). A non-activating
-always-on-top `NSPanel` sits around the notch: a collapsed pill (agent count +
-worst-state color) that auto-expands into a card when an agent goes `blocked`.
+always-on-top `NSPanel` sits around the notch: a minimal status line reveals the
+agent count on hover (or stays visible by preference), and a blocked agent opens
+directly into its actionable interaction.
 See [`Sources/NotchApp/README.md`](Sources/NotchApp/README.md) for the manual
 test checklist.
 
