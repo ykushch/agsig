@@ -78,6 +78,18 @@ struct InteractionActionShelf: View {
             if interaction.capabilities.contains(.navigateSteps) {
                 questionStepper
             }
+            if let selected = interaction.presentation.selectedChoiceIndex,
+               interaction.presentation.selectedChoicePreview != nil,
+               interaction.choices.indices.contains(selected) {
+                Button {
+                    model.respondToSelectedInteraction(.selectChoice(selected))
+                } label: {
+                    Label("Choose selected", systemImage: "checkmark")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green.opacity(0.78))
+                .help("Submit “\(interaction.choices[selected].label)”")
+            }
             safetyIndicator
             if display.showsCancel {
                 interactionMenu(includesBackToChoices: false)

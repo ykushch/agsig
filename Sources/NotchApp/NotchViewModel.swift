@@ -482,7 +482,9 @@ final class NotchViewModel {
         respondToSelectedInteraction(interaction.kind == .approval ? .deny : .cancel)
     }
     func answerSelected(index: Int) {
-        respondToSelectedInteraction(.selectChoice(index))
+        respondToSelectedInteraction(
+            selectedInteraction?.presentation.selectedChoicePreview == nil
+                ? .selectChoice(index) : .previewChoice(index))
     }
     func replySelected() {
         guard let pane = selectedPaneID else { return }

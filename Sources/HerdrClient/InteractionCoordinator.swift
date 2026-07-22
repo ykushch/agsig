@@ -225,6 +225,11 @@ public final class InteractionCoordinator {
                revision != state.lastRevision {
                 appendRefresh(paneID, reason: .revisionChanged, to: &refreshes)
             } else if countsTowardFallbackCadence,
+                      paneID == selectedPaneID {
+                // Cursor-only terminal redraws do not reliably advance herdr's
+                // pane revision. Keep the visible prompt and its preview live.
+                appendRefresh(paneID, reason: .selected, to: &refreshes)
+            } else if countsTowardFallbackCadence,
                       pollIndex.isMultiple(of: fallbackPollInterval),
                       !revisionReliable || pane.revision == nil {
                 appendRefresh(paneID, reason: .fallbackCadence, to: &refreshes)
@@ -323,7 +328,7 @@ public final class InteractionCoordinator {
                                                generation: generation)
             }
             guard states[paneID]?.blockedSequence == generation else { return true }
-            clearDraft(paneID)
+            if !intent.preservesDraft { clearDraft(paneID) }
             if let settled = result.settledInteraction {
                 install(interaction: settled, paneID: paneID,
                         reason: .responseSettled,

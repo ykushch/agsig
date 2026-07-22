@@ -101,6 +101,33 @@ struct PromptClassifierTests {
         #expect(PromptClassifier.highlightedTabLabel(in: line) == "Topics")
     }
 
+    @Test("multi-line option details stay attached to their numbered choice")
+    func multiLineOptionDescriptions() {
+        let options = PromptClassifier.parseNumberedOptions("""
+          1. Delegate the treatment
+            computes from web lab
+            ┌──────────┬──────────┐
+            │ source   │ treatment│
+            └──────────┴──────────┘
+            Notes: version-controlled mapping
+
+          2. Forward context
+            Symfony metadata
+
+          Enter to select · Tab/Arrow keys to navigate · Esc to cancel
+        """)
+
+        #expect(options.count == 2)
+        #expect(options[0].description == """
+        computes from web lab
+        ┌──────────┬──────────┐
+        │ source   │ treatment│
+        └──────────┴──────────┘
+        Notes: version-controlled mapping
+        """)
+        #expect(options[1].description == "Symfony metadata")
+    }
+
     private func parse(_ path: String, currentTabLabel: String? = nil)
         -> PendingInteraction {
         classifier.classifyInteraction(

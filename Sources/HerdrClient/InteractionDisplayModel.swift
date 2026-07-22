@@ -38,12 +38,14 @@ public struct InteractionDisplayModel: Sendable, Equatable {
     public let approvalPersistChoiceIndex: Int?
     public let supportMessage: String?
     public let userContextLine: String?
+    public let selectedChoicePreview: String?
 
     public init(interaction: PendingInteraction) {
         title = interaction.title
         body = interaction.body
         progressText = Self.progressText(interaction.progress)
         userContextLine = interaction.userPromptContext.map { "You: \(Self.oneLine($0))" }
+        selectedChoicePreview = interaction.presentation.selectedChoicePreview
         let isMultiSelect = interaction.capabilities.contains(.selectMany)
         let checked = Set(interaction.presentation.checkedChoiceIndexes)
         choices = interaction.choices.indices.map { index in

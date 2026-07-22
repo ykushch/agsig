@@ -59,6 +59,23 @@ struct InteractionResponsePlannerTests {
             == ["up", "up", "up", "enter"])
     }
 
+    @Test("preview navigation moves the cursor without submitting")
+    func previewNavigation() throws {
+        let interaction = PendingInteraction(
+            paneID: "w1:p2", kind: .question, title: "Compare",
+            choices: (1...3).map { InteractionChoice(label: "Option \($0)") },
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: 0, mechanism: .arrowNavigate,
+                selectedChoicePreview: "Current preview"),
+            capabilities: [.selectOne, .deny], evidence: evidence)
+
+        #expect(try planner.plan(.previewChoice(2), for: interaction).flattenedKeys
+            == ["down", "down"])
+        #expect(try planner.plan(.previewChoice(0), for: interaction) == .noOp)
+        #expect(try planner.plan(.selectChoice(2), for: interaction).flattenedKeys
+            == ["down", "down", "enter"])
+    }
+
     @Test("numbered shortcuts select by number then Enter")
     func numberedShortcut() throws {
         let interaction = question(mechanism: .numberedShortcut, cursor: nil)

@@ -204,8 +204,10 @@ public struct PromptClassifier: Sendable {
     }
 
     static func parseNumberedOptions(_ text: String) -> [ParsedTerminalOption] {
-        let lines = text.split(
+        let rawLines = text.split(
             separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let columnLayout = splitChoiceAndPreviewColumns(rawLines)
+        let lines = columnLayout.choiceLines
         var options: [ParsedTerminalOption] = []
         var index = 0
         while index < lines.count {
@@ -213,19 +215,10 @@ public struct PromptClassifier: Sendable {
                 index += 1
                 continue
             }
-            var description: String?
-            if index + 1 < lines.count {
-                let next = lines[index + 1]
-                let trimmed = next.trimmingCharacters(in: .whitespaces)
-                let isIndented = next.hasPrefix("  ") || next.hasPrefix("\t")
-                let isHint = trimmed.isEmpty
-                    || trimmed.allSatisfy { $0 == "─" || $0 == "—" || $0 == "-" }
-                    || trimmed.lowercased().contains("to select")
-                    || trimmed.lowercased().contains("to navigate")
-                if parseOptionLine(next) == nil, isIndented, !isHint {
-                    description = trimmed
-                }
-            }
+            let descriptionLines = optionDescriptionLines(
+                in: lines, after: index)
+            let description = descriptionLines.isEmpty
+                ? nil : descriptionLines.joined(separator: "\n")
             let lower = parsed.label.lowercased()
             options.append(ParsedTerminalOption(
                 label: parsed.label, description: description,
@@ -236,6 +229,123 @@ public struct PromptClassifier: Sendable {
             index += 1
         }
         return options
+    }
+
+    static func selectedChoicePreview(_ text: String) -> String? {
+        let lines = text.split(
+            separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        return splitChoiceAndPreviewColumns(lines).selectedPreview?
+            .joined(separator: "\n")
+    }
+
+    private struct NumberedOptionColumnLayout {
+        let choiceLines: [String]
+        let selectedPreview: [String]?
+    }
+
+    /// Claude's richer question UI can place numbered choices beside a box
+    /// preview. The detection read is a terminal grid, so without separating
+    /// columns the right-hand card becomes part of each option label.
+    private static func splitChoiceAndPreviewColumns(
+        _ lines: [String]
+    ) -> NumberedOptionColumnLayout {
+        let topCorners: Set<Character> = ["┌", "╭", "┏"]
+        guard let column = lines.lazy.compactMap({ line -> Int? in
+            guard parseOptionLine(line) != nil,
+                  let corner = line.firstIndex(where: topCorners.contains) else {
+                return nil
+            }
+            let offset = line.distance(from: line.startIndex, to: corner)
+            return offset >= 12 ? offset : nil
+        }).first else {
+            return NumberedOptionColumnLayout(
+                choiceLines: lines, selectedPreview: nil)
+        }
+
+        let choiceLines = lines.map { prefix($0, characterCount: column) }
+        let previewLines = cleanBoxPreview(lines.map {
+            suffix($0, droppingCharacters: column)
+        })
+        return NumberedOptionColumnLayout(
+            choiceLines: choiceLines,
+            selectedPreview: previewLines.isEmpty ? nil : previewLines)
+    }
+
+    private static func cleanBoxPreview(_ lines: [String]) -> [String] {
+        let topCorners: Set<Character> = ["┌", "╭", "┏"]
+        let bottomCorners: Set<Character> = ["└", "╰", "┗"]
+        let verticalEdges: Set<Character> = ["│", "┃"]
+        var isInsideBox = false
+        var content: [String] = []
+
+        for line in lines {
+            var value = line.trimmingCharacters(in: .whitespaces)
+            guard let first = value.first else { continue }
+            if topCorners.contains(first) {
+                isInsideBox = true
+                continue
+            }
+            guard isInsideBox else { continue }
+            if bottomCorners.contains(first) { break }
+            guard verticalEdges.contains(first) else { continue }
+
+            value.removeFirst()
+            value = value.trimmingCharacters(in: .whitespaces)
+            if let last = value.last, verticalEdges.contains(last) {
+                value.removeLast()
+                value = value.trimmingCharacters(in: .whitespaces)
+            }
+            if !value.isEmpty { content.append(value) }
+        }
+        return content
+    }
+
+    private static func prefix(_ value: String, characterCount: Int) -> String {
+        let end = value.index(
+            value.startIndex, offsetBy: characterCount,
+            limitedBy: value.endIndex) ?? value.endIndex
+        return String(value[..<end])
+    }
+
+    private static func suffix(_ value: String, droppingCharacters count: Int) -> String {
+        guard let start = value.index(
+            value.startIndex, offsetBy: count,
+            limitedBy: value.endIndex) else { return "" }
+        return String(value[start...])
+    }
+
+    /// Claude can render a choice as a small document: wrapped prose, an ASCII
+    /// table, and notes can all belong to the same numbered option. Keep that
+    /// block intact until the next numbered choice instead of retaining only
+    /// its first visual line.
+    private static func optionDescriptionLines(
+        in lines: [String], after optionIndex: Int
+    ) -> [String] {
+        guard optionIndex + 1 < lines.count else { return [] }
+        var result: [String] = []
+        var index = optionIndex + 1
+        while index < lines.count {
+            let line = lines[index]
+            if parseOptionLine(line) != nil { break }
+
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if isInteractionFooter(trimmed) { break }
+
+            let isIndented = line.hasPrefix("  ") || line.hasPrefix("\t")
+            guard trimmed.isEmpty || isIndented else { break }
+            result.append(trimmed)
+            index += 1
+        }
+        while result.last?.isEmpty == true { result.removeLast() }
+        return result
+    }
+
+    private static func isInteractionFooter(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        return lower.contains("enter to select")
+            || lower.contains("to navigate")
+            || lower.contains("esc to cancel")
+            || lower.contains("esc to interrupt")
     }
 
     static func interactionBody(_ text: String, excluding title: String?) -> String? {

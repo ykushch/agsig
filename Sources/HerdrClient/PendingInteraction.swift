@@ -72,13 +72,18 @@ public struct InteractionPresentation: Sendable, Equatable {
     public let checkedChoiceIndexes: [Int]
     public let activeStepIndex: Int?
     public let mechanism: InteractionMechanism
+    /// Display-only content rendered for the currently highlighted choice.
+    /// Like cursor/check state, this can redraw without changing interaction identity.
+    public let selectedChoicePreview: String?
 
     public init(selectedChoiceIndex: Int? = nil, checkedChoiceIndexes: [Int] = [],
-                activeStepIndex: Int? = nil, mechanism: InteractionMechanism) {
+                activeStepIndex: Int? = nil, mechanism: InteractionMechanism,
+                selectedChoicePreview: String? = nil) {
         self.selectedChoiceIndex = selectedChoiceIndex
         self.checkedChoiceIndexes = checkedChoiceIndexes.sorted()
         self.activeStepIndex = activeStepIndex
         self.mechanism = mechanism
+        self.selectedChoicePreview = selectedChoicePreview
     }
 }
 

@@ -1,0 +1,28 @@
+How detailed should CLAUDE.md be? Preview shows the shape of each version.
+
+❯ 1. Keep current                 ┌───────────────────────────────────────────┐
+  2. More concise                 │ CLAUDE.md                                 │
+  3. More in-depth                │                                           │
+                                  │ Overview                                  │
+                                  │                                           │
+                                  │ Commands                                  │
+                                  │                                           │
+                                  │ Content model — how posts work            │
+                                  │                                           │
+                                  │ Key routes                                │
+                                  │                                           │
+                                  │ App shell & styling                       │
+                                  │                                           │
+                                  │ Environment                               │
+                                  │                                           │
+                                  │ Gotchas                                   │
+                                  │                                           │
+                                  │ ≈ 60 lines · balanced                     │
+                                  └───────────────────────────────────────────┘
+
+                                  Notes: press n to add notes
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Chat about this
+
+Enter to select · ↑/↓ to navigate · n to add notes · Tab to switch questions · Esc to cancel

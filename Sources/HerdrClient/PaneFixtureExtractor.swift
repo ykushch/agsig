@@ -7,6 +7,7 @@ public struct PaneFixtureAnnotations: Codable, Sendable, Equatable {
     public let title: String?
     public let optionLabels: [String]
     public let optionDescriptions: [String]
+    public let selectedChoicePreview: String?
     public let observedCursorIndex: Int?
     public let observedCheckedIndexes: [Int]
     public let responseMechanism: String
@@ -16,7 +17,8 @@ public struct PaneFixtureAnnotations: Codable, Sendable, Equatable {
 
     public init(name: String, interactionKind: String, progress: String? = nil,
                 title: String? = nil, optionLabels: [String] = [],
-                optionDescriptions: [String] = [], observedCursorIndex: Int? = nil,
+                optionDescriptions: [String] = [], selectedChoicePreview: String? = nil,
+                observedCursorIndex: Int? = nil,
                 observedCheckedIndexes: [Int] = [], responseMechanism: String,
                 expectedResponsePlans: [String: [String]] = [:],
                 manifestRule: String? = nil, notes: [String] = []) {
@@ -26,6 +28,7 @@ public struct PaneFixtureAnnotations: Codable, Sendable, Equatable {
         self.title = title
         self.optionLabels = optionLabels
         self.optionDescriptions = optionDescriptions
+        self.selectedChoicePreview = selectedChoicePreview
         self.observedCursorIndex = observedCursorIndex
         self.observedCheckedIndexes = observedCheckedIndexes
         self.responseMechanism = responseMechanism
@@ -41,6 +44,7 @@ public struct PaneFixtureAnnotations: Codable, Sendable, Equatable {
         case title
         case optionLabels = "option_labels"
         case optionDescriptions = "option_descriptions"
+        case selectedChoicePreview = "selected_choice_preview"
         case observedCursorIndex = "observed_cursor_index"
         case observedCheckedIndexes = "observed_checked_indexes"
         case responseMechanism = "response_mechanism"

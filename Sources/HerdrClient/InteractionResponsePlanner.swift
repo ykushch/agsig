@@ -1,6 +1,7 @@
 import Foundation
 
 public enum InteractionResponseIntent: Sendable, Equatable {
+    case previewChoice(Int)
     case selectChoice(Int)
     case setChoice(Int, checked: Bool)
     case enterText(String)
@@ -15,6 +16,11 @@ public enum InteractionResponseIntent: Sendable, Equatable {
     case approve
     case deny
     case cancel
+
+    var preservesDraft: Bool {
+        if case .previewChoice = self { return true }
+        return false
+    }
 }
 
 public enum InteractionResponseOperation: Sendable, Equatable {
@@ -58,6 +64,15 @@ public struct InteractionResponsePlanner: Sendable {
     public func plan(_ intent: InteractionResponseIntent,
                      for interaction: PendingInteraction) throws -> InteractionResponsePlan {
         switch intent {
+        case let .previewChoice(index):
+            guard interaction.capabilities.contains(.selectOne),
+                  interaction.presentation.mechanism == .arrowNavigate,
+                  interaction.presentation.selectedChoicePreview != nil,
+                  interaction.choices.indices.contains(index) else {
+                throw InteractionPlanningError.unsupportedIntent
+            }
+            let movement = try keysToFocusChoice(index, for: interaction)
+            return movement.isEmpty ? .noOp : keys(movement)
         case let .selectChoice(index):
             guard interaction.capabilities.contains(.selectOne) else {
                 throw InteractionPlanningError.unsupportedIntent

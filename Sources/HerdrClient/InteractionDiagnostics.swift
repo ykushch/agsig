@@ -52,6 +52,11 @@ public struct InteractionDiagnosticBuilder: Sendable {
                     responseIntent: .setChoice(index, checked: desired),
                     interaction: interaction))
             } else {
+                if interaction.presentation.selectedChoicePreview != nil {
+                    values.append(proposal(
+                        intent: "preview_choice", choiceIndex: index,
+                        responseIntent: .previewChoice(index), interaction: interaction))
+                }
                 values.append(proposal(
                     intent: "select_choice", choiceIndex: index,
                     responseIntent: .selectChoice(index), interaction: interaction))

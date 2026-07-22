@@ -192,33 +192,69 @@ struct InteractionDetailView: View {
         } else if display.choicesAreActionable {
             Button { respond(choiceIntent(choice)) } label: { choiceContent(choice) }
                 .buttonStyle(.plain).disabled(phase.isBusy)
+                .help(display.selectedChoicePreview == nil
+                    ? "Choose \(choice.label)"
+                    : "Preview \(choice.label) without submitting")
         } else {
             choiceContent(choice)
         }
     }
 
     private func choiceContent(_ choice: InteractionDisplayChoice) -> some View {
-        HStack(alignment: .top, spacing: 7) {
-            Text("\(choice.index + 1).").font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(choice.isSelected ? .green : .white.opacity(0.65))
-            if let checked = choice.isChecked {
-                Image(systemName: checked ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(checked ? .green : .white.opacity(0.4))
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(choice.label).font(.system(size: 11, weight: choice.isSelected ? .semibold : .regular))
-                    .foregroundStyle(.white)
-                if let description = choice.description {
-                    Text(description).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 7) {
+                Text("\(choice.index + 1).").font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(choice.isSelected ? .green : .white.opacity(0.65))
+                if let checked = choice.isChecked {
+                    Image(systemName: checked ? "checkmark.square.fill" : "square")
+                        .foregroundStyle(checked ? .green : .white.opacity(0.4))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(choice.label).font(.system(size: 11, weight: choice.isSelected ? .semibold : .regular))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                    if let description = choice.description {
+                        Text(description)
+                            .font(.system(
+                                size: 9,
+                                design: description.contains("\n") ? .monospaced : .default))
+                            .foregroundStyle(.white.opacity(0.58))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                Spacer(minLength: 0)
+                if display.choicesAreActionable,
+                   display.selectedChoicePreview != nil {
+                    Label(choice.isSelected ? "Selected" : "Preview",
+                          systemImage: choice.isSelected ? "checkmark" : "eye")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.42))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Capsule().fill(.white.opacity(0.08)))
+                        .fixedSize()
+                } else if display.choicesAreActionable, choice.index < 9 {
+                    Text("\(hotkeySymbols)\(choice.index + 1)")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.42))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Capsule().fill(.white.opacity(0.08)))
+                        .fixedSize()
                 }
             }
-            Spacer(minLength: 0)
-            if display.choicesAreActionable, choice.index < 9 {
-                Text("\(hotkeySymbols)\(choice.index + 1)")
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.42))
-                    .padding(.horizontal, 5).padding(.vertical, 2)
-                    .background(Capsule().fill(.white.opacity(0.08)))
+            if choice.isSelected,
+               let preview = display.selectedChoicePreview,
+               !preview.isEmpty {
+                Divider().overlay(.white.opacity(0.1)).padding(.vertical, 7)
+                Text(preview)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(8).frame(maxWidth: .infinity, alignment: .leading)
@@ -234,7 +270,9 @@ struct InteractionDetailView: View {
                 : hoveredChoiceIndex == choice.index ? nil : hoveredChoiceIndex
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Option \(choice.index + 1), \(choice.label)")
+        .accessibilityLabel(display.selectedChoicePreview == nil
+            ? "Option \(choice.index + 1), \(choice.label)"
+            : "Preview option \(choice.index + 1), \(choice.label), without submitting")
     }
 
     private func textEntry(
@@ -254,7 +292,9 @@ struct InteractionDetailView: View {
 
     private func choiceIntent(_ choice: InteractionDisplayChoice) -> InteractionResponseIntent {
         choice.isChecked.map { .setChoice(choice.index, checked: !$0) }
-            ?? .selectChoice(choice.index)
+            ?? (display.selectedChoicePreview != nil
+                ? .previewChoice(choice.index)
+                : .selectChoice(choice.index))
     }
 
     private func submitText(_ intent: (String) -> InteractionResponseIntent) {

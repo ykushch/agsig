@@ -188,8 +188,25 @@ struct InteractionCoordinatorTests {
         #expect(coordinator.state(for: "w1:p1")?.lastRefreshReason == .explicitSelection)
     }
 
-    @Test("stable selected panes stay cached while revision changes refresh other panes")
-    func revisionRefreshesNonSelectedPane() async {
+    @Test("previewing another choice preserves the attached draft")
+    func previewPreservesDraft() async {
+        let value = read(
+            paneID: "w1:p1", title: "Compare", preview: "Current preview")
+        let reader = ScriptedInteractionReader(["w1:p1": [value]])
+        let coordinator = makeCoordinator(reader: reader, interactions: [value])
+        _ = await coordinator.reconcile(
+            panes: [pane("w1:p1", revision: 1)], newlyBlockedPaneIDs: [])
+        #expect(coordinator.setDraftText("keep my notes", paneID: "w1:p1"))
+
+        #expect(await coordinator.respond(
+            paneID: "w1:p1", intent: .previewChoice(1)))
+
+        #expect(coordinator.draftText(for: "w1:p1") == "keep my notes")
+        #expect(coordinator.state(for: "w1:p1")?.draft.state == .attached)
+    }
+
+    @Test("selected panes refresh cursor redraws while revisions refresh other panes")
+    func selectedAndRevisionRefreshes() async {
         let p1 = read(paneID: "w1:p1", title: "Selected")
         let p2a = read(paneID: "w1:p2", title: "Question one")
         let p2b = read(paneID: "w1:p2", title: "Question two")
@@ -207,8 +224,9 @@ struct InteractionCoordinatorTests {
             panes: [pane("w1:p1", revision: 1), pane("w1:p2", revision: 2)],
             newlyBlockedPaneIDs: [])
 
-        #expect(result.refreshedPaneIDs == ["w1:p2"])
-        #expect(await reader.count(for: "w1:p1") == 2)
+        #expect(result.refreshedPaneIDs == ["w1:p1", "w1:p2"])
+        #expect(await reader.count(for: "w1:p1") == 3)
+        #expect(coordinator.state(for: "w1:p1")?.lastRefreshReason == .selected)
         #expect(coordinator.state(for: "w1:p2")?.interaction?.title == "Question two")
         #expect(coordinator.state(for: "w1:p2")?.lastRefreshReason == .revisionChanged)
     }
@@ -447,13 +465,15 @@ struct InteractionCoordinatorTests {
             revision: revision, isBlocked: isBlocked)
     }
 
-    private func read(paneID: String, title: String) -> PendingInteraction {
+    private func read(paneID: String, title: String, preview: String? = nil)
+        -> PendingInteraction {
         PendingInteraction(
             paneID: paneID, kind: .question, title: title,
             choices: [InteractionChoice(label: "One"),
                       InteractionChoice(label: "Two")],
             presentation: InteractionPresentation(
-                selectedChoiceIndex: 0, mechanism: .arrowNavigate),
+                selectedChoiceIndex: 0, mechanism: .arrowNavigate,
+                selectedChoicePreview: preview),
             capabilities: [.selectOne, .deny],
             evidence: InteractionEvidence(
                 source: .screen, providerID: "test",

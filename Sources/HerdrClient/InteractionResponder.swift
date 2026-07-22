@@ -212,7 +212,7 @@ public struct InteractionResponder: InteractionResponding, Sendable {
             }
         case .question:
             switch intent {
-            case .selectChoice, .setChoice, .enterText, .submitText,
+            case .previewChoice, .selectChoice, .setChoice, .enterText, .submitText,
                  .submitChoiceText,
                  .beginTextEntry, .clearTextEntry, .navigatePrevious,
                  .navigateNext, .navigateToStep, .submit, .cancel: true

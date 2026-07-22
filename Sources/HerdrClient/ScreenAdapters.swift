@@ -169,7 +169,8 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
                     options[$0].isChecked == true
                 },
                 activeStepIndex: parsedSteps.firstIndex(where: \.isCurrent),
-                mechanism: mechanism),
+                mechanism: mechanism,
+                selectedChoicePreview: PromptClassifier.selectedChoicePreview(text)),
             capabilities: capabilities,
             evidence: InteractionEvidence(
                 source: .screen, providerID: adapterID,

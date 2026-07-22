@@ -38,7 +38,8 @@ struct PendingInteractionIdentityTests {
             ],
             presentation: InteractionPresentation(
                 selectedChoiceIndex: 1, checkedChoiceIndexes: [0], activeStepIndex: 1,
-                mechanism: .multiSelect),
+                mechanism: .multiSelect,
+                selectedChoicePreview: "A different live preview"),
             revision: 99)
 
         #expect(redrawn.fingerprint == baseline.fingerprint)

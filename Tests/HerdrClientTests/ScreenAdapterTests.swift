@@ -289,4 +289,29 @@ struct ClaudeScreenAdapterRegressionTests {
             InteractionDiffLine(lineNumber: 2, kind: .addition, text: "new value"),
         ])
     }
+
+    @Test("captured two-column Claude question separates choices from preview")
+    func capturedTwoColumnPreview() throws {
+        let directory = Fixtures.url(
+            "claude-interactions/claude-two-column-choice-preview-011088c00357.fixture")
+        let metadata = try PaneFixtureExtractor().verifyFixture(at: directory)
+        let interaction = try InteractionFixtureInspector().inspect(directory: directory)
+
+        #expect(interaction.kind == .question)
+        #expect(interaction.title == metadata.annotations.title)
+        #expect(interaction.choices.map(\.label) == metadata.annotations.optionLabels)
+        #expect(interaction.choices.allSatisfy { $0.description == nil })
+        #expect(interaction.presentation.selectedChoicePreview
+            == metadata.annotations.selectedChoicePreview)
+        #expect(interaction.presentation.selectedChoiceIndex == 0)
+        #expect(interaction.choices.allSatisfy {
+            !$0.label.contains("│") && !$0.label.contains("┌")
+        })
+        #expect(try InteractionResponsePlanner().plan(
+            .selectChoice(2), for: interaction).flattenedKeys
+            == ["down", "down", "enter"])
+        #expect(try InteractionResponsePlanner().plan(
+            .previewChoice(2), for: interaction).flattenedKeys
+            == ["down", "down"])
+    }
 }

@@ -97,6 +97,28 @@ struct InteractionResponderTests {
             == ["up", "up", "up", "enter"])
     }
 
+    @Test("preview navigation never presses Enter")
+    func previewDoesNotSubmit() async throws {
+        let shown = question(title: "Compare", cursor: 0, preview: "Short")
+        let refreshed = question(title: "Compare", cursor: 2, preview: "Detailed")
+        let provider = ScriptedInteractionProvider([shown, refreshed, refreshed])
+        let client = MockClient()
+        let responder = InteractionResponder(
+            provider: provider,
+            actions: Actions(client: client, ghostty: MockGhostty()),
+            settleAttempts: 4, settleDelayNanoseconds: 0,
+            sleep: { _ in })
+
+        let result = try await responder.respond(
+            responseRequest(for: shown, intent: .previewChoice(2)))
+
+        #expect(client.recorded.count == 1)
+        #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue)
+            == ["down", "down"])
+        #expect(result.settledInteraction?.presentation.selectedChoiceIndex == 2)
+        #expect(result.settledInteraction?.presentation.selectedChoicePreview == "Detailed")
+    }
+
     @Test("Claude questions use the same revalidating responder path")
     func claudeQuestionIsSafelyAnswerable() async throws {
         let interaction = PromptClassifier().classifyInteraction(
@@ -220,12 +242,14 @@ struct InteractionResponderTests {
             paneRevision: 1, confidence: .exact)
     }
 
-    private func question(title: String, cursor: Int) -> PendingInteraction {
+    private func question(title: String, cursor: Int, preview: String? = nil)
+        -> PendingInteraction {
         PendingInteraction(
             paneID: "w1:p2", kind: .question, title: title,
             choices: (1...4).map { InteractionChoice(label: "Option \($0)") },
             presentation: InteractionPresentation(
-                selectedChoiceIndex: cursor, mechanism: .arrowNavigate),
+                selectedChoiceIndex: cursor, mechanism: .arrowNavigate,
+                selectedChoicePreview: preview),
             capabilities: [.selectOne, .deny], evidence: evidence)
     }
 }
