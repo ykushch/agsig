@@ -1,7 +1,7 @@
 # NotchAgent
 
 A native macOS notch control surface for AI coding agents running under
-[herdr](https://herdr.dev) in Ghostty. **Monitor, approve or deny, answer, and
+[herdr](https://herdr.dev) in your preferred terminal. **Monitor, approve or deny, answer, and
 jump to** your agents from the MacBook notch — without hunting through terminal
 panes for the one that needs you.
 
@@ -20,7 +20,7 @@ an accelerator. The UI stays thin and every response remains explicitly user-dri
   count on hover or keeping it visible if you prefer.
 - Opens the relevant interaction when an agent becomes blocked and needs input.
 - Collects every herdr session in one overview with status, prompt, elapsed time,
-  and a direct jump back to its Ghostty pane.
+  and a direct jump back to its terminal pane.
 - Turns supported approvals and questions into explicit, clickable actions while
   preserving a terminal fallback for anything uncertain.
 - Displays and cycles Claude and Codex interaction modes from the focused
@@ -47,8 +47,8 @@ an accelerator. The UI stays thin and every response remains explicitly user-dri
 ## Requirements
 
 - macOS 14+ on Apple Silicon, Swift 6.2 toolchain (Xcode 16+).
-- **[herdr](https://herdr.dev) must be installed and running**, with Ghostty
-  attached to it, before NotchAgent can discover or control agents.
+- **[herdr](https://herdr.dev) must be installed and running**, with a terminal
+  client attached to it, before NotchAgent can discover or control agents.
 - No third-party dependencies (Foundation/AppKit/SwiftUI + POSIX sockets).
 
 ## Install
@@ -124,7 +124,7 @@ swift run notchctl --json inspect <fixture>   # verify and inspect an offline .f
 swift run notchctl --json dry-run <pane> option 2 # re-read + plan; never send input
 swift run notchctl resolve <pane> <choice>   # choice = approve | deny | <option number> (F3/F4)
 swift run notchctl reply <pane> <text...>    # free-text reply, submits with enter (F4/F9)
-swift run notchctl jump  <pane>              # focus the pane + raise Ghostty (F5)
+swift run notchctl jump  <pane>              # focus the pane + present its terminal (F5)
 ```
 
 Global flags: `--json` (machine-readable output), `--sock <path>` (explicit

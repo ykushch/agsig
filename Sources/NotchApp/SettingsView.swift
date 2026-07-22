@@ -23,6 +23,18 @@ struct SettingsView: View {
             Text(displayPlacementHelp)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Section("Jump") {
+                Picker("Terminal app", selection: $settings.preferredTerminal) {
+                    ForEach(PreferredTerminal.allCases) { Text($0.displayName).tag($0) }
+                }
+                if settings.preferredTerminal == .custom {
+                    TextField("Application name", text: $settings.customTerminalAppName)
+                    TextField("Bundle identifier (optional)", text: $settings.customTerminalBundleID)
+                }
+                Text("Auto-detect uses a running terminal only when the choice is unambiguous.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Picker("Compact indicator", selection: $settings.compactIndicatorMode) {
                 ForEach(CompactIndicatorMode.allCases) { Text($0.displayName).tag($0) }
             }
@@ -38,7 +50,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 440, height: 440)
+        .frame(width: 460, height: 520)
     }
 
     private var displayPlacementHelp: String {
@@ -47,8 +59,8 @@ struct SettingsView: View {
             "Uses the built-in notch when available. On non-notch Macs, the pill floats at the top center."
         case .activeDisplay:
             "Follows the display with keyboard focus. Display changes settle for a moment before the pill moves."
-        case .ghosttyDisplay:
-            "Uses the display containing the frontmost visible Ghostty window, falling back to the active display."
+        case .terminalDisplay:
+            "Uses the display containing the preferred terminal, falling back to the active display."
         }
     }
 }

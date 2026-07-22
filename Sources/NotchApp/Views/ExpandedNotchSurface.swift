@@ -102,6 +102,9 @@ private struct NotchOverviewSurface: View {
                         systemImage: "exclamationmark.triangle.fill",
                         color: .orange)
                 }
+                if let notice = model.jumpNotice {
+                    JumpNoticeBanner(model: model, notice: notice)
+                }
                 AttentionListView(
                     items: snapshot.items,
                     select: model.selectPane,
@@ -137,6 +140,9 @@ private struct NotchFocusedSurface: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let item = snapshot.selectedItem,
                        let paneID = model.selectedPaneID {
+                        if let notice = model.jumpNotice {
+                            JumpNoticeBanner(model: model, notice: notice)
+                        }
                         FocusedSessionHeader(model: model, paneID: paneID, item: item)
                         FocusedInteractionContent(model: model, item: item)
                     } else {
@@ -307,5 +313,33 @@ private struct StatusBanner: View {
             .padding(9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 9).fill(color.opacity(0.13)))
+    }
+}
+
+private struct JumpNoticeBanner: View {
+    @Bindable var model: NotchViewModel
+    let notice: JumpNotice
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text(notice.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            if notice.attachCommand != nil {
+                Button("Copy attach command", action: model.copyJumpAttachCommand)
+                    .foregroundStyle(.cyan)
+            }
+            Button(action: model.dismissJumpNotice) {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel("Dismiss jump message")
+        }
+        .font(.system(size: 10, weight: .medium))
+        .buttonStyle(.plain)
+        .foregroundStyle(.orange)
+        .padding(9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 9).fill(.orange.opacity(0.13)))
     }
 }

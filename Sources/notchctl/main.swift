@@ -309,7 +309,17 @@ enum CLI {
     static func report(_ result: ActionResult) {
         switch result {
         case .sent: print(jsonOutput ? "{\"result\":\"sent\"}" : "sent")
-        case .jumped(let raised): print(jsonOutput ? "{\"result\":\"jumped\",\"ghostty_raised\":\(raised)}" : "jumped (Ghostty raised: \(raised))")
+        case .jumped(let terminal):
+            switch terminal {
+            case .presented(let appName):
+                print(jsonOutput
+                    ? "{\"result\":\"jumped\",\"terminal_presented\":true,\"terminal\":\"\(appName)\"}"
+                    : "jumped (terminal presented: \(appName))")
+            case .unavailable:
+                print(jsonOutput
+                    ? "{\"result\":\"jumped\",\"terminal_presented\":false}"
+                    : "jumped (terminal could not be presented)")
+            }
         case .needsAttach: print(jsonOutput ? "{\"result\":\"needs_attach\"}" : "pane is on a detached session — attach first")
         }
     }

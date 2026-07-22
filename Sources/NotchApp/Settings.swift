@@ -1,4 +1,5 @@
 import AppKit
+import HerdrClient
 import Observation
 
 enum HotkeyModifier: String, CaseIterable, Identifiable {
@@ -39,7 +40,7 @@ enum HotkeyModifier: String, CaseIterable, Identifiable {
 enum DisplayPlacement: String, CaseIterable, Identifiable {
     case notchDisplay
     case activeDisplay
-    case ghosttyDisplay
+    case terminalDisplay = "ghosttyDisplay"
 
     var id: String { rawValue }
 
@@ -47,7 +48,35 @@ enum DisplayPlacement: String, CaseIterable, Identifiable {
         switch self {
         case .notchDisplay: "Notch display"
         case .activeDisplay: "Active display"
-        case .ghosttyDisplay: "Display with Ghostty"
+        case .terminalDisplay: "Display with terminal"
+        }
+    }
+}
+
+enum PreferredTerminal: String, CaseIterable, Identifiable {
+    case automatic
+    case ghostty
+    case terminal
+    case iTerm2
+    case kitty
+    case wezTerm
+    case alacritty
+    case warp
+    case custom
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .automatic: "Auto-detect running terminal"
+        case .ghostty: "Ghostty"
+        case .terminal: "Terminal"
+        case .iTerm2: "iTerm2"
+        case .kitty: "kitty"
+        case .wezTerm: "WezTerm"
+        case .alacritty: "Alacritty"
+        case .warp: "Warp"
+        case .custom: "Custom application"
         }
     }
 }
@@ -77,6 +106,9 @@ final class Settings {
     var respectDND: Bool { didSet { defaults.set(respectDND, forKey: Keys.respectDND) } }
     var hotkeyModifier: HotkeyModifier { didSet { defaults.set(hotkeyModifier.rawValue, forKey: Keys.hotkeyModifier) } }
     var displayPlacement: DisplayPlacement { didSet { defaults.set(displayPlacement.rawValue, forKey: Keys.displayPlacement) } }
+    var preferredTerminal: PreferredTerminal { didSet { defaults.set(preferredTerminal.rawValue, forKey: Keys.preferredTerminal) } }
+    var customTerminalAppName: String { didSet { defaults.set(customTerminalAppName, forKey: Keys.customTerminalAppName) } }
+    var customTerminalBundleID: String { didSet { defaults.set(customTerminalBundleID, forKey: Keys.customTerminalBundleID) } }
     var compactIndicatorMode: CompactIndicatorMode { didSet { defaults.set(compactIndicatorMode.rawValue, forKey: Keys.compactIndicatorMode) } }
     var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin); LoginItem.setEnabled(launchAtLogin) } }
 
@@ -91,6 +123,10 @@ final class Settings {
         hotkeyModifier = HotkeyModifier(rawValue: defaults.string(forKey: Keys.hotkeyModifier) ?? "") ?? .controlOption
         displayPlacement = DisplayPlacement(
             rawValue: defaults.string(forKey: Keys.displayPlacement) ?? "") ?? .notchDisplay
+        preferredTerminal = PreferredTerminal(
+            rawValue: defaults.string(forKey: Keys.preferredTerminal) ?? "") ?? .automatic
+        customTerminalAppName = defaults.string(forKey: Keys.customTerminalAppName) ?? ""
+        customTerminalBundleID = defaults.string(forKey: Keys.customTerminalBundleID) ?? ""
         compactIndicatorMode = CompactIndicatorMode(
             rawValue: defaults.string(forKey: Keys.compactIndicatorMode) ?? "") ?? .revealOnHover
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
@@ -104,6 +140,40 @@ final class Settings {
         return nil
     }
 
+    var terminalSelection: TerminalActivator.Selection {
+        switch preferredTerminal {
+        case .automatic:
+            .automatic()
+        case .custom:
+            .preferred(TerminalProfile(
+                id: "custom",
+                displayName: customTerminalAppName.isEmpty ? "Custom terminal" : customTerminalAppName,
+                appName: customTerminalAppName,
+                bundleIdentifiers: customTerminalBundleID.isEmpty ? [] : [customTerminalBundleID]))
+        default:
+            .preferred(terminalProfiles[0])
+        }
+    }
+
+    var terminalProfiles: [TerminalProfile] {
+        switch preferredTerminal {
+        case .automatic: TerminalProfile.supported
+        case .ghostty: [.ghostty]
+        case .terminal: [.terminal]
+        case .iTerm2: [.iTerm2]
+        case .kitty: [.kitty]
+        case .wezTerm: [.wezTerm]
+        case .alacritty: [.alacritty]
+        case .warp: [.warp]
+        case .custom:
+            [TerminalProfile(
+                id: "custom",
+                displayName: customTerminalAppName.isEmpty ? "Custom terminal" : customTerminalAppName,
+                appName: customTerminalAppName,
+                bundleIdentifiers: customTerminalBundleID.isEmpty ? [] : [customTerminalBundleID])]
+        }
+    }
+
     private enum Keys {
         static let socketPathOverride = "socketPathOverride"
         static let sessionName = "sessionName"
@@ -113,6 +183,9 @@ final class Settings {
         static let respectDND = "respectDND"
         static let hotkeyModifier = "hotkeyModifier"
         static let displayPlacement = "displayPlacement"
+        static let preferredTerminal = "preferredTerminal"
+        static let customTerminalAppName = "customTerminalAppName"
+        static let customTerminalBundleID = "customTerminalBundleID"
         static let compactIndicatorMode = "compactIndicatorMode"
         static let launchAtLogin = "launchAtLogin"
     }

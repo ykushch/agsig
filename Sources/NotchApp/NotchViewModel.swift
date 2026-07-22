@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import HerdrClient
 import Observation
@@ -5,6 +6,11 @@ import Observation
 struct NotchDisplaySnapshot: Sendable {
     let items: [InteractionAttentionDisplayModel]
     let selectedItem: InteractionAttentionDisplayModel?
+}
+
+struct JumpNotice: Sendable, Equatable {
+    let text: String
+    let attachCommand: String?
 }
 
 /// Observable view-model backing the notch UI (specs 08/09).
@@ -141,6 +147,7 @@ final class NotchViewModel {
     /// True once the accessibility permission needed for global hotkeys is known
     /// to be missing (spec 09 surfaces a hint instead of silently failing).
     var accessibilityMissing: Bool = false
+    private(set) var jumpNotice: JumpNotice?
 
     /// Connection state for the robustness UX (spec 10d): drives a "herdr not
     /// running" empty state vs. a live view.
@@ -597,9 +604,60 @@ final class NotchViewModel {
     func jump(_ pane: String) {
         if pane == selectedPaneID { markUserEngaged() }
         let info = store.panes[pane]
+        let presenter = TerminalActivator(
+            selection: settings?.terminalSelection ?? .automatic())
         Task { @MainActor in
-            do { _ = try await actions.jump(pane: pane, workspaceID: info?.workspaceID, tabID: info?.tabID) }
-            catch { interactions.setError(String(describing: error), paneID: pane) }
+            do {
+                let result = try await actions.jump(
+                    pane: pane,
+                    workspaceID: info?.workspaceID,
+                    tabID: info?.tabID,
+                    presenter: presenter)
+                handleJumpResult(result, terminalID: info?.terminalID)
+            }
+            catch {
+                let message = "Couldn't jump to this agent: \(String(describing: error))"
+                interactions.setError(message, paneID: pane)
+                jumpNotice = JumpNotice(text: message, attachCommand: nil)
+            }
+        }
+    }
+
+    func copyJumpAttachCommand() {
+        guard let command = jumpNotice?.attachCommand else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        jumpNotice = JumpNotice(text: "Attach command copied.", attachCommand: command)
+    }
+
+    func dismissJumpNotice() {
+        jumpNotice = nil
+    }
+
+    private func handleJumpResult(_ result: ActionResult, terminalID: String?) {
+        switch result {
+        case .sent:
+            break
+        case .jumped(.presented):
+            jumpNotice = nil
+        case .jumped(.unavailable(let failure)):
+            jumpNotice = JumpNotice(text: jumpFailureMessage(failure), attachCommand: nil)
+        case .needsAttach:
+            let command = terminalID.map { "herdr terminal attach \($0)" }
+            jumpNotice = JumpNotice(
+                text: "No Herdr terminal is attached. Attach a terminal to open this agent.",
+                attachCommand: command)
+        }
+    }
+
+    private func jumpFailureMessage(_ failure: TerminalPresentationFailure) -> String {
+        switch failure {
+        case .noSupportedTerminalRunning:
+            "Agent focused in Herdr, but no supported terminal is running. Choose a terminal in Settings."
+        case .ambiguous(let appNames):
+            "Agent focused in Herdr, but multiple terminals are running (\(appNames.joined(separator: ", "))). Choose one in Settings."
+        case .applicationUnavailable(let appName):
+            "Agent focused in Herdr, but \(appName) could not be opened. Check the terminal setting."
         }
     }
 

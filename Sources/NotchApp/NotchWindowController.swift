@@ -22,7 +22,7 @@ final class NotchWindowController {
     init(viewModel: NotchViewModel, settings: Settings) {
         self.viewModel = viewModel
         self.settings = settings
-        let screen = Self.preferredScreen(for: settings.displayPlacement)
+        let screen = Self.preferredScreen(for: settings)
         let geometry = NotchGeometry(metrics: NotchScreenMetrics(screen: screen))
         let compactRevealed = settings.compactIndicatorMode == .alwaysShow
         let frame = geometry.panelFrame(
@@ -70,7 +70,11 @@ final class NotchWindowController {
             _ = viewModel.agentCount
             _ = viewModel.connection
             _ = viewModel.accessibilityMissing
+            _ = viewModel.jumpNotice
             _ = settings.displayPlacement
+            _ = settings.preferredTerminal
+            _ = settings.customTerminalAppName
+            _ = settings.customTerminalBundleID
             _ = settings.compactIndicatorMode
             _ = surfaceState.isCompactIndicatorRevealed
             _ = surfaceState.requestedExpandedHeight
@@ -132,7 +136,7 @@ final class NotchWindowController {
     }
 
     private func screenSelectionMayHaveChanged() {
-        let candidate = Self.preferredScreen(for: settings.displayPlacement)
+        let candidate = Self.preferredScreen(for: settings)
         let candidateNumber = Self.screenNumber(candidate)
         guard candidateNumber != currentScreenNumber else {
             pendingScreenNumber = nil
@@ -157,7 +161,7 @@ final class NotchWindowController {
     }
 
     private func adoptPreferredScreenImmediately() {
-        let screen = Self.preferredScreen(for: settings.displayPlacement)
+        let screen = Self.preferredScreen(for: settings)
         currentScreenNumber = Self.screenNumber(screen)
         pendingScreenNumber = nil
         pendingScreenSince = nil
@@ -165,7 +169,7 @@ final class NotchWindowController {
 
     private func applyPresentation(on explicitScreen: NSScreen? = nil) {
         let screen = explicitScreen ?? Self.screen(
-            numbered: currentScreenNumber) ?? Self.preferredScreen(for: settings.displayPlacement)
+            numbered: currentScreenNumber) ?? Self.preferredScreen(for: settings)
         let geometry = NotchGeometry(metrics: NotchScreenMetrics(screen: screen))
         surfaceState.updateCompactIndicatorMode(settings.compactIndicatorMode)
         if surfaceState.geometry != geometry {
@@ -188,6 +192,7 @@ final class NotchWindowController {
         case .overview:
             let bannerCount = (viewModel.connection == .unavailable ? 1 : 0)
                 + (viewModel.accessibilityMissing ? 1 : 0)
+                + (viewModel.jumpNotice == nil ? 0 : 1)
             surfaceState.prepareOverview(estimatedHeight: geometry.overviewHeight(
                 agentCount: viewModel.agentCount,
                 bannerCount: bannerCount))
@@ -309,26 +314,28 @@ final class NotchWindowController {
         }
     }
 
-    private static func preferredScreen(for placement: DisplayPlacement) -> NSScreen {
+    private static func preferredScreen(for settings: Settings) -> NSScreen {
         let fallback = NSScreen.main ?? NSScreen.screens[0]
-        switch placement {
+        switch settings.displayPlacement {
         case .notchDisplay:
             return NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? fallback
         case .activeDisplay:
             return fallback
-        case .ghosttyDisplay:
-            return ghosttyScreen() ?? fallback
+        case .terminalDisplay:
+            return terminalScreen(profiles: settings.terminalProfiles) ?? fallback
         }
     }
 
-    private static func ghosttyScreen() -> NSScreen? {
+    private static func terminalScreen(profiles: [TerminalProfile]) -> NSScreen? {
         guard let windowInfo = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
         else { return nil }
 
-        let ghosttyPIDs = Set(NSWorkspace.shared.runningApplications.compactMap { app -> pid_t? in
-            guard GhosttyActivator.bundleIdentifiers.contains(app.bundleIdentifier ?? "")
-                    || app.localizedName == "Ghostty"
+        let terminalPIDs = Set(NSWorkspace.shared.runningApplications.compactMap { app -> pid_t? in
+            guard profiles.contains(where: {
+                $0.bundleIdentifiers.contains(app.bundleIdentifier ?? "")
+                    || $0.appName == app.localizedName
+            })
             else { return nil }
             return app.processIdentifier
         })
@@ -336,7 +343,7 @@ final class NotchWindowController {
         for info in windowInfo {
             guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
                   let ownerPID = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
-                  ghosttyPIDs.contains(ownerPID),
+                  terminalPIDs.contains(ownerPID),
                   let boundsDictionary = info[kCGWindowBounds as String] as? [String: Any],
                   let quartzBounds = CGRect(
                     dictionaryRepresentation: boundsDictionary as CFDictionary),

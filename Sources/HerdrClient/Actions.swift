@@ -4,8 +4,8 @@ import Foundation
 public enum ActionResult: Sendable, Equatable {
     /// Keys/text were sent successfully.
     case sent
-    /// Jump focused the pane and raised (or failed to raise) Ghostty.
-    case jumped(ghosttyRaised: Bool)
+    /// Jump focused the pane and attempted to present its terminal application.
+    case jumped(terminal: TerminalPresentation)
     /// The pane is on a detached session; focus can't be applied. Not a crash.
     case needsAttach
 }
@@ -24,7 +24,7 @@ extension ActionError: LocalizedError {
     }
 }
 
-/// Translates user intents into herdr calls + the Ghostty raise.
+/// Translates user intents into herdr calls + terminal presentation.
 ///
 /// **Never auto-answers.** Every method is user-initiated; there are no timers
 /// or defaults. Approve/deny/answer send validated key-combo tokens (herdr accepts
@@ -32,11 +32,14 @@ extension ActionError: LocalizedError {
 /// keys before writing — surfaced as `ActionError.keysRejected`).
 public struct Actions: Sendable {
     let client: any RequestSending
-    let ghostty: any GhosttyActivating
+    let terminal: any TerminalPresenting
 
-    public init(client: any RequestSending, ghostty: any GhosttyActivating = GhosttyActivator()) {
+    public init(
+        client: any RequestSending,
+        terminal: any TerminalPresenting = TerminalActivator()
+    ) {
         self.client = client
-        self.ghostty = ghostty
+        self.terminal = terminal
     }
 
     /// Free-text reply (F9). Sends text; the caller decides whether a trailing
@@ -75,17 +78,22 @@ public struct Actions: Sendable {
 
     // MARK: Jump
 
-    /// Focus the pane in herdr, then raise Ghostty. Focusing a pane on a detached
+    /// Focus the pane in herdr, then present its terminal. Focusing a pane on a detached
     /// session returns `.needsAttach` rather than throwing.
     ///
     /// Focuses the WHOLE path — workspace → tab → pane — not just the pane. herdr is
     /// workspaces→tabs→panes, and the attached client only switches its DISPLAYED
     /// tab when the workspace + tab are focused too; `pane.focus` alone moves the
-    /// server's focused id but can leave Ghostty showing the previous tab (the
-    /// "opens Ghostty but not the right tab" bug). `workspaceID`/`tabID` come from
+    /// server's focused id but can leave the terminal showing the previous tab.
+    /// `workspaceID`/`tabID` come from
     /// the caller's `PaneInfo`; if omitted we look them up via `pane.get`.
     @discardableResult
-    public func jump(pane: String, workspaceID: String? = nil, tabID: String? = nil) async throws -> ActionResult {
+    public func jump(
+        pane: String,
+        workspaceID: String? = nil,
+        tabID: String? = nil,
+        presenter: (any TerminalPresenting)? = nil
+    ) async throws -> ActionResult {
         // Resolve workspace/tab if not supplied.
         var ws = workspaceID, tab = tabID
         if ws == nil || tab == nil {
@@ -110,14 +118,14 @@ public struct Actions: Sendable {
             }
             throw HerdrError.api(code: code, message: message)
         }
-        let raised = ghostty.activate()
-        // Re-assert the focus AFTER raising Ghostty. The client can miss/queue the
+        let presentation = (presenter ?? terminal).present()
+        // Re-assert the focus AFTER presenting the terminal. The client can miss/queue the
         // tab switch while it's backgrounded; issuing the focus again once it's
         // frontmost nudges it to render the target tab (the "different tab → jump
         // does nothing" case). Best-effort — ignore errors on the re-assert.
         try? await Task.sleep(nanoseconds: 120_000_000)
         try? await focusPath()
-        return .jumped(ghosttyRaised: raised)
+        return .jumped(terminal: presentation)
     }
 
     // MARK: Internal

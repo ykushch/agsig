@@ -105,7 +105,7 @@ struct InteractionResponderTests {
         let client = MockClient()
         let responder = InteractionResponder(
             provider: provider,
-            actions: Actions(client: client, ghostty: MockGhostty()),
+            actions: Actions(client: client, terminal: MockTerminal()),
             settleAttempts: 4, settleDelayNanoseconds: 0,
             sleep: { _ in })
 
@@ -170,7 +170,7 @@ struct InteractionResponderTests {
         let client = MockClient()
         let responder = InteractionResponder(
             provider: provider,
-            actions: Actions(client: client, ghostty: MockGhostty()),
+            actions: Actions(client: client, terminal: MockTerminal()),
             settleAttempts: 4, settleDelayNanoseconds: 0,
             sleep: { _ in })
 
@@ -223,7 +223,7 @@ struct InteractionResponderTests {
                            client: MockClient) -> InteractionResponder {
         InteractionResponder(
             provider: provider,
-            actions: Actions(client: client, ghostty: MockGhostty()),
+            actions: Actions(client: client, terminal: MockTerminal()),
             settleAttempts: 0, settleDelayNanoseconds: 0,
             sleep: { _ in })
     }
