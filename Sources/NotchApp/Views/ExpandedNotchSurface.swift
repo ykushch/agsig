@@ -195,11 +195,32 @@ private struct FocusedSessionHeader: View {
             if let freshness = item.freshnessText {
                 Text(freshness).foregroundStyle(.cyan.opacity(0.62))
             }
+            AgentModeControl(model: model)
             Button("Jump") { model.jump(paneID) }
                 .foregroundStyle(.cyan)
         }
         .font(.system(size: 9, weight: .medium))
         .buttonStyle(.plain)
+    }
+}
+
+private struct AgentModeControl: View {
+    @Bindable var model: NotchViewModel
+
+    @ViewBuilder var body: some View {
+        if model.selectedAgentSupportsModeCycling {
+            Button(action: model.cycleSelectedAgentMode) {
+                Label(
+                    model.selectedAgentMode.map { "Mode: \($0.displayName)" } ?? "Mode",
+                    systemImage: "arrow.triangle.2.circlepath")
+            }
+            .foregroundStyle(.purple.opacity(0.92))
+            .disabled(!model.canCycleSelectedAgentMode)
+            .help("Cycle agent mode (Shift-Tab)")
+            .accessibilityLabel("Cycle agent mode")
+            .accessibilityValue(model.selectedAgentMode?.displayName ?? "Unknown")
+            .accessibilityHint("Sends Shift-Tab to the selected agent")
+        }
     }
 }
 

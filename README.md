@@ -23,6 +23,8 @@ an accelerator. The UI stays thin and every response remains explicitly user-dri
   and a direct jump back to its Ghostty pane.
 - Turns supported approvals and questions into explicit, clickable actions while
   preserving a terminal fallback for anything uncertain.
+- Displays and cycles Claude and Codex interaction modes from the focused
+  panel's **Mode** button, including Claude Auto mode when it is available.
 - Supports display placement, global hotkeys, sounds, Do Not Disturb, and launch
   at login without adding a Dock icon.
 
@@ -138,8 +140,8 @@ $ swift run notchctl list
 ```
 
 `resolve`/`reply` read the pane's current prompt via `pane.read --source detection`,
-classify it, and send **raw keys only** (herdr rejects `prefix+` chords). Unknown
-prompt shapes fall back to a raw view — the tool never fabricates a keystroke.
+classify it, and send validated key-combo tokens (herdr rejects `prefix+` bindings).
+Unknown prompt shapes fall back to a raw view — the tool never fabricates a keystroke.
 
 ### Interaction diagnostics
 

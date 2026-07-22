@@ -42,8 +42,9 @@ public struct PaneSendTextParams: Codable, Sendable {
     }
 }
 
-/// Parameters for `pane.send_keys`. **Raw keys only** — herdr rejects `prefix+`
-/// bindings and invalid keys before writing.
+/// Parameters for `pane.send_keys`. Accepts herdr key-combo tokens, including
+/// modifier chords such as `shift+tab`; `prefix+` bindings and invalid keys are
+/// rejected before writing.
 public struct PaneSendKeysParams: Codable, Sendable {
     public let paneID: String
     public let keys: [String]

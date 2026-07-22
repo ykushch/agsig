@@ -97,6 +97,22 @@ final class NotchViewModel {
         return store.derivedStatus(forPane: id)
     }
 
+    /// Mode cycling is intentionally exposed only for agents whose terminal UI
+    /// documents Shift-Tab for this purpose. We do not infer the current mode.
+    var selectedAgentSupportsModeCycling: Bool {
+        guard let paneID = selectedPaneID else { return false }
+        return AgentModeCycling.isSupported(agentID: store.panes[paneID]?.agent)
+    }
+
+    private(set) var agentModesByPane: [String: AgentMode] = [:]
+    var selectedAgentMode: AgentMode? {
+        selectedPaneID.flatMap { agentModesByPane[$0] }
+    }
+
+    var canCycleSelectedAgentMode: Bool {
+        selectedAgentSupportsModeCycling && connection == .connected && !isActing
+    }
+
     /// Per-pane draft projection. Switching panes never overwrites another draft.
     var replyText: String {
         get {
@@ -169,6 +185,7 @@ final class NotchViewModel {
     @ObservationIgnored private var client: HerdrClient
     @ObservationIgnored private var actions: Actions
     @ObservationIgnored private var completionProvider: ScreenCompletionSummaryProvider
+    @ObservationIgnored private var modeProvider: ScreenAgentModeProvider
     @ObservationIgnored private var nativeRegistry: OpenCodePaneRegistry
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -187,6 +204,7 @@ final class NotchViewModel {
         self.actions = actions
         self.nativeRegistry = registry
         self.completionProvider = ScreenCompletionSummaryProvider(client: client)
+        self.modeProvider = ScreenAgentModeProvider(client: client)
         self.interactions = InteractionCoordinator(
             reader: provider,
             responder: RoutedInteractionResponder(
@@ -212,6 +230,8 @@ final class NotchViewModel {
             registry: registry, native: nativeProvider, fallback: screenProvider)
         nativeRegistry = registry
         completionProvider = ScreenCompletionSummaryProvider(client: client)
+        modeProvider = ScreenAgentModeProvider(client: client)
+        agentModesByPane = [:]
         interactions = InteractionCoordinator(
             reader: provider,
             responder: RoutedInteractionResponder(
@@ -287,8 +307,10 @@ final class NotchViewModel {
             if globalError != nil { globalError = nil }
             let selectedBefore = selectedPaneID
             let transitions = store.reconcileTransitions(snapshot)
+            agentModesByPane = agentModesByPane.filter { store.panes[$0.key] != nil }
             _ = await reconcileInteractions(
                 newlyBlocked: transitions.newlyBlockedPaneIDs)
+            await refreshSelectedAgentMode()
             await captureCompletionSummaries(
                 paneIDs: transitions.newlyFinishedPaneIDs)
             for _ in transitions.newlyBlockedPaneIDs {
@@ -382,6 +404,7 @@ final class NotchViewModel {
         await interactions.select(paneID: paneID)
         presentation = .focused(NotchFocusContext(
             origin: .automatic, hasUserEngaged: false))
+        await refreshAgentMode(paneID: paneID)
     }
 
     private func reconcileInteractions(
@@ -423,6 +446,7 @@ final class NotchViewModel {
             await interactions.select(paneID: paneID)
             presentation = .focused(NotchFocusContext(
                 origin: .manual, hasUserEngaged: true))
+            await refreshAgentMode(paneID: paneID)
         }
     }
 
@@ -438,6 +462,7 @@ final class NotchViewModel {
             await interactions.select(paneID: paneID)
             presentation = .focused(NotchFocusContext(
                 origin: .manual, hasUserEngaged: true))
+            await refreshAgentMode(paneID: paneID)
         }
     }
 
@@ -546,6 +571,18 @@ final class NotchViewModel {
         respondToSelectedInteraction(delta < 0 ? .navigatePrevious : .navigateNext)
     }
     func sendArrowToSelected(_ key: String) { sendRawKeysSelected([key]) }
+    func cycleSelectedAgentMode() {
+        guard canCycleSelectedAgentMode, let pane = selectedPaneID else { return }
+        let actions = actions
+        markUserEngaged()
+        Task { @MainActor in
+            _ = await interactions.performManualAction(paneID: pane) {
+                _ = try await actions.cycleAgentMode(pane: pane)
+            }
+            try? await Task.sleep(nanoseconds: 160_000_000)
+            await refreshAgentMode(paneID: pane)
+        }
+    }
     func sendRawKeysSelected(_ keys: [String]) {
         guard let pane = selectedPaneID else { return }
         sendRawKeys(pane: pane, keys: keys)
@@ -576,6 +613,19 @@ final class NotchViewModel {
             _ = await interactions.performManualAction(
                 paneID: paneID, operation: body)
         }
+    }
+
+    private func refreshSelectedAgentMode() async {
+        guard let paneID = selectedPaneID else { return }
+        await refreshAgentMode(paneID: paneID)
+    }
+
+    private func refreshAgentMode(paneID: String) async {
+        guard let pane = store.panes[paneID],
+              AgentModeCycling.isSupported(agentID: pane.agent),
+              let mode = try? await modeProvider.mode(
+                paneID: paneID, agentID: pane.agent) else { return }
+        agentModesByPane[paneID] = mode
     }
 
     /// The only entry point for structured UI actions. The responder re-reads

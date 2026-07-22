@@ -40,6 +40,14 @@ struct ActionsTests {
         #expect(client.recorded[0].params["keys"]?.arrayValue?.compactMap(\.stringValue)
             == ["down", "space"])
     }
+    @Test func cycleAgentModeSendsOneBackTabSequencePerRequest() async throws {
+        let client = MockClient(); let actions = Actions(client: client, ghostty: MockGhostty())
+        _ = try await actions.cycleAgentMode(pane: "w1:p1")
+        _ = try await actions.cycleAgentMode(pane: "w1:p1")
+        #expect(client.recorded.map(\.method) == ["pane.send_text", "pane.send_text"])
+        #expect(client.recorded[0].params["pane_id"]?.stringValue == "w1:p1")
+        #expect(client.recorded.map { $0.params["text"]?.stringValue } == ["\u{1B}[Z", "\u{1B}[Z"])
+    }
     @Test func jumpOrdering() async throws {
         let client = MockClient(); let ghostty = MockGhostty(); let actions = Actions(client: client, ghostty: ghostty)
         #expect(try await actions.jump(pane: "w2:p1", workspaceID: "w2", tabID: "w2:t1") == .jumped(ghosttyRaised: true))

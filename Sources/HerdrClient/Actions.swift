@@ -12,7 +12,7 @@ public enum ActionResult: Sendable, Equatable {
 
 /// Errors specific to the action layer.
 public enum ActionError: Error, Sendable {
-    /// herdr rejected the keys (invalid key or `prefix+` chord) before writing.
+    /// herdr rejected the keys (invalid key combo or `prefix+` binding) before writing.
     case keysRejected(message: String)
 }
 
@@ -27,8 +27,9 @@ extension ActionError: LocalizedError {
 /// Translates user intents into herdr calls + the Ghostty raise.
 ///
 /// **Never auto-answers.** Every method is user-initiated; there are no timers
-/// or defaults. Approve/deny/answer send raw keys only (herdr rejects `prefix+`
-/// chords and invalid keys before writing — surfaced as `ActionError.keysRejected`).
+/// or defaults. Approve/deny/answer send validated key-combo tokens (herdr accepts
+/// modifier chords such as `shift+tab`, but rejects `prefix+` bindings and invalid
+/// keys before writing — surfaced as `ActionError.keysRejected`).
 public struct Actions: Sendable {
     let client: any RequestSending
     let ghostty: any GhosttyActivating
@@ -55,6 +56,20 @@ public struct Actions: Sendable {
     public func sendRawKeys(pane: String, keys: [String]) async throws -> ActionResult {
         let params = try PaneSendKeysParams(paneID: pane, keys: keys).asJSONValue()
         try await send("pane.send_keys", params: params)
+        return .sent
+    }
+
+    /// Cycle the selected agent's interaction mode. The agent remains the source
+    /// of truth for which mode becomes active; this method sends exactly one
+    /// user-requested BackTab sequence and does not infer the resulting mode.
+    ///
+    /// `pane.send_keys` is intentionally not used here. In herdr 0.7.5 its
+    /// Shift-Tab key event can redraw Claude without changing modes, while the
+    /// terminal's standard BackTab sequence is handled correctly and repeatedly.
+    @discardableResult
+    public func cycleAgentMode(pane: String) async throws -> ActionResult {
+        let params = try PaneSendTextParams(paneID: pane, text: "\u{1B}[Z").asJSONValue()
+        try await send("pane.send_text", params: params)
         return .sent
     }
 
