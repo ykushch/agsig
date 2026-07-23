@@ -58,7 +58,9 @@ final class NotchViewModel {
             interactions.attentionOrder.enumerated().map { ($0.element, $0.offset) })
         return panes.map { pane in
             let workspaceLabel = store.workspaces[pane.workspaceID]?.label
-            let workspace = workspaceLabel ?? pane.workspaceID
+            let spaceTitle = PaneDisplayIdentity.spaceTitle(
+                pane: pane, workspaceLabel: workspaceLabel)
+            let tab = store.tabs[pane.tabID]
             let status = store.derivedStatus(forPane: pane.paneID)
             let activeSince = status == .working
                 ? store.workingSince[pane.paneID]
@@ -69,7 +71,9 @@ final class NotchViewModel {
                     pane: pane, workspaceLabel: workspaceLabel),
                 agentName: pane.displayAgent ?? pane.agent ?? "agent",
                 modelName: PaneDisplayIdentity.modelBadge(pane: pane),
-                workspaceLabel: workspace,
+                workspaceLabel: spaceTitle,
+                tabTitle: PaneDisplayIdentity.tabTitle(
+                    label: tab?.label, number: tab?.number),
                 status: status,
                 state: interactions.state(for: pane.paneID),
                 completionSummary: interactions.completionSummary(for: pane.paneID),

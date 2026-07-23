@@ -355,22 +355,25 @@ struct InteractionDisplayModelTests {
             paneID: "w1:p1", agentID: "claude", interaction: interaction)
         let ready = InteractionAttentionDisplayModel(
             paneID: "w1:p1", taskTitle: "Fix auth", agentName: "claude",
-            workspaceLabel: "project",
+            workspaceLabel: "project", tabTitle: "Tab 2",
             status: .blocked, state: readyState, isSelected: true)
         #expect(ready.stateText == "needs input")
         #expect(ready.summary == "Question 2/3 (2 unanswered)")
-        #expect(ready.title == "Fix auth")
+        #expect(ready.title == "project")
+        #expect(ready.taskTitle == "Fix auth")
+        #expect(ready.tabTitle == "Tab 2")
         #expect(ready.modelName == nil)
-        #expect(ready.accessibilityLabel.contains("Fix auth, claude, project"))
+        #expect(ready.accessibilityLabel.contains("claude, in project, Tab 2"))
+        #expect(!ready.accessibilityLabel.contains("Fix auth"))
         #expect(ready.accessibilityLabel.contains("pane w1:p1"))
         let other = InteractionAttentionDisplayModel(
             paneID: "w1:p2", taskTitle: "Ship release", agentName: "codex",
             workspaceLabel: "release", status: .blocked, state: nil,
             isSelected: false)
         #expect(AttentionRollupDisplay.pillTaskTitle(
-            items: [ready, other], selectedPaneID: "w1:p2") == "Ship release")
+            items: [ready, other], selectedPaneID: "w1:p2") == "release")
         #expect(AttentionRollupDisplay.pillTaskTitle(
-            items: [ready, other], selectedPaneID: nil) == "Fix auth")
+            items: [ready, other], selectedPaneID: nil) == "project")
         let working = InteractionAttentionDisplayModel(
             paneID: "w1:p3", taskTitle: "Background work", agentName: "claude",
             workspaceLabel: "project", status: .working, state: nil,
@@ -451,7 +454,7 @@ struct InteractionDisplayModelTests {
         #expect(older.freshnessText == "read 2m ago")
     }
 
-    @Test("pane identity prefers title, label, then cwd basename")
+    @Test("display identity separates space, tab, and terminal fallbacks")
     func paneIdentityFallbacks() {
         func pane(title: String? = nil, label: String? = nil,
                   cwd: String? = nil, foregroundCwd: String? = nil) -> PaneInfo {
@@ -474,6 +477,24 @@ struct InteractionDisplayModelTests {
         #expect(PaneDisplayIdentity.taskTitle(
             pane: pane(), workspaceLabel: "Workspace") == "Workspace")
         #expect(PaneDisplayIdentity.taskTitle(pane: pane()) == "codex")
+
+        #expect(PaneDisplayIdentity.spaceTitle(
+            pane: pane(cwd: "/work/project"),
+            workspaceLabel: "  Capacity Planning  ") == "Capacity Planning")
+        #expect(PaneDisplayIdentity.spaceTitle(
+            pane: pane(cwd: "/work/project")) == "project")
+        #expect(PaneDisplayIdentity.spaceTitle(
+            pane: pane(foregroundCwd: "/work/live-project")) == "live-project")
+        #expect(PaneDisplayIdentity.spaceTitle(pane: pane()) == "w1")
+
+        #expect(PaneDisplayIdentity.tabTitle(
+            label: "Release prep", number: 2) == "Release prep")
+        #expect(PaneDisplayIdentity.tabTitle(label: "4", number: nil) == "Tab 4")
+        #expect(PaneDisplayIdentity.tabTitle(label: " 12 ", number: nil) == "Tab 12")
+        #expect(PaneDisplayIdentity.tabTitle(label: "Tab1", number: nil) == "Tab 1")
+        #expect(PaneDisplayIdentity.tabTitle(label: " tab 12 ", number: nil) == "Tab 12")
+        #expect(PaneDisplayIdentity.tabTitle(label: nil, number: 3) == "Tab 3")
+        #expect(PaneDisplayIdentity.tabTitle(label: "  ", number: nil) == "Tab")
     }
 
     @Test("Claude text-entry choices remain typed in shared display data")

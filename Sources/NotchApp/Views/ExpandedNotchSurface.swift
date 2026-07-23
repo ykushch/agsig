@@ -59,9 +59,9 @@ private struct ExpandedNotchHeader: View {
                 Button(action: model.showOverview) {
                     Label("All \(sessionCount)", systemImage: "chevron.left")
                 }
-                .help("Show all sessions")
+                .help("Show all agents")
             } else {
-                Label("\(sessionCount) sessions", systemImage: "terminal")
+                Label("\(sessionCount) agents", systemImage: "terminal")
             }
             Spacer()
             if isFocused {
@@ -111,7 +111,7 @@ private struct NotchOverviewSurface: View {
                     jump: model.jump)
                 if snapshot.items.isEmpty, model.connection != .unavailable {
                     ContentUnavailableView(
-                        "No agent sessions",
+                        "No agents",
                         systemImage: "terminal",
                         description: Text("Start an agent under herdr and it will appear here."))
                     .foregroundStyle(NotchPalette.secondaryText)
@@ -146,7 +146,7 @@ private struct NotchFocusedSurface: View {
                         FocusedSessionHeader(model: model, paneID: paneID, item: item)
                         FocusedInteractionContent(model: model, item: item)
                     } else {
-                        ProgressView("Loading session…")
+                        ProgressView("Loading agent…")
                             .foregroundStyle(NotchPalette.secondaryText)
                             .frame(maxWidth: .infinity, minHeight: 220)
                     }
@@ -188,7 +188,7 @@ private struct FocusedSessionHeader: View {
                 Text(item.title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .lineLimit(1)
-                Text([item.agentName, item.modelName, item.workspaceLabel]
+                Text([item.agentName, item.modelName, item.tabTitle]
                     .compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(NotchPalette.tertiaryText)

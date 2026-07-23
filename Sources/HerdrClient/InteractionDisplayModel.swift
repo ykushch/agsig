@@ -130,6 +130,7 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     public let agentName: String
     public let modelName: String?
     public let workspaceLabel: String
+    public let tabTitle: String
     public let status: RollupStatus
     public let stateText: String
     public let summary: String
@@ -138,14 +139,16 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     public let isSelected: Bool
 
     public var id: String { paneID }
-    public var title: String { taskTitle }
+    public var title: String { workspaceLabel }
     public var accessibilityLabel: String {
-        [title, agentName, modelName, workspaceLabel, "pane \(paneID)", stateText,
-         summary, elapsedText, freshnessText].compactMap { $0 }.joined(separator: ", ")
+        [agentName, "in \(workspaceLabel)", tabTitle, modelName, "pane \(paneID)",
+         stateText, summary, elapsedText, freshnessText]
+            .compactMap { $0 }.joined(separator: ", ")
     }
 
     public init(paneID: String, taskTitle: String, agentName: String,
-                modelName: String? = nil, workspaceLabel: String, status: RollupStatus,
+                modelName: String? = nil, workspaceLabel: String,
+                tabTitle: String = "Tab", status: RollupStatus,
                 state: PaneInteractionState?, completionSummary: String? = nil,
                 activeSince: Date? = nil, now: Date = Date(),
                 isSelected: Bool) {
@@ -154,6 +157,7 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
         self.agentName = agentName
         self.modelName = modelName
         self.workspaceLabel = workspaceLabel
+        self.tabTitle = tabTitle
         self.status = status
         self.isSelected = isSelected
         elapsedText = activeSince.map { "\(Self.duration(from: $0, to: now)) elapsed" }
@@ -210,22 +214,34 @@ public struct InteractionAttentionDisplayModel: Identifiable, Sendable, Equatabl
     }
 }
 
-/// Stable project/session identity derived only from fields herdr already owns.
-/// A true agent task name is not available yet, so cwd is deliberately a
-/// project-name fallback rather than being presented as model-authored context.
+/// Stable space, tab, and terminal identity derived only from fields herdr owns.
+/// A true agent task name is not available yet, so cwd remains a location
+/// fallback rather than being presented as model-authored context.
 public enum PaneDisplayIdentity {
+    public static func spaceTitle(
+        pane: PaneInfo, workspaceLabel: String? = nil
+    ) -> String {
+        if let workspaceLabel = nonEmpty(workspaceLabel) { return workspaceLabel }
+        if let cwd = directoryName(pane.cwd) { return cwd }
+        if let cwd = directoryName(pane.foregroundCwd) { return cwd }
+        return pane.workspaceID
+    }
+
+    public static func tabTitle(label: String?, number: Int?) -> String {
+        if let label = nonEmpty(label) {
+            return normalizedGenericTabTitle(label)
+        }
+        if let number { return "Tab \(number)" }
+        return "Tab"
+    }
+
     public static func taskTitle(
         pane: PaneInfo, workspaceLabel: String? = nil
     ) -> String {
         if let title = nonEmpty(pane.title) { return title }
         if let label = nonEmpty(pane.label) { return label }
-        if let cwd = nonEmpty(pane.cwd), !URL(fileURLWithPath: cwd).lastPathComponent.isEmpty {
-            return URL(fileURLWithPath: cwd).lastPathComponent
-        }
-        if let cwd = nonEmpty(pane.foregroundCwd),
-           !URL(fileURLWithPath: cwd).lastPathComponent.isEmpty {
-            return URL(fileURLWithPath: cwd).lastPathComponent
-        }
+        if let cwd = directoryName(pane.cwd) { return cwd }
+        if let cwd = directoryName(pane.foregroundCwd) { return cwd }
         if let workspaceLabel = nonEmpty(workspaceLabel) { return workspaceLabel }
         return nonEmpty(pane.displayAgent) ?? nonEmpty(pane.agent) ?? pane.paneID
     }
@@ -238,6 +254,25 @@ public enum PaneDisplayIdentity {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
     }
+
+    private static func directoryName(_ path: String?) -> String? {
+        guard let path = nonEmpty(path) else { return nil }
+        let name = URL(fileURLWithPath: path).lastPathComponent
+        return name.isEmpty ? nil : name
+    }
+
+    private static func normalizedGenericTabTitle(_ label: String) -> String {
+        let compact = label.filter { !$0.isWhitespace }
+        if !compact.isEmpty, compact.allSatisfy(\.isNumber) {
+            return "Tab \(compact)"
+        }
+        guard compact.count > 3,
+              compact.prefix(3).lowercased() == "tab",
+              compact.dropFirst(3).allSatisfy(\.isNumber) else {
+            return label
+        }
+        return "Tab \(compact.dropFirst(3))"
+    }
 }
 
 public enum AttentionRollupDisplay {
@@ -248,8 +283,8 @@ public enum AttentionRollupDisplay {
            let selected = items.first(where: {
                $0.paneID == selectedPaneID && $0.status == .blocked
            }) {
-            return selected.taskTitle
+            return selected.title
         }
-        return items.first(where: { $0.status == .blocked })?.taskTitle
+        return items.first(where: { $0.status == .blocked })?.title
     }
 }

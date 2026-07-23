@@ -18,7 +18,8 @@ struct AttentionListView: View {
                     Button("Jump") { jump(item.paneID) }
                         .buttonStyle(.plain).font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.cyan).padding(.horizontal, 6)
-                        .accessibilityLabel("Jump to \(item.agentName), pane \(item.paneID)")
+                        .accessibilityLabel(
+                            "Jump to \(item.agentName) in \(item.workspaceLabel), \(item.tabTitle)")
                 }
                 .padding(6)
                 .background(RoundedRectangle(cornerRadius: 9).fill(
@@ -63,7 +64,7 @@ struct AttentionListView: View {
                         .foregroundStyle(item.status == .blocked ? .red : .white.opacity(0.45))
                 }
                 HStack(spacing: 6) {
-                    Text(item.workspaceLabel).lineLimit(1)
+                    Text(item.tabTitle).lineLimit(1)
                     Spacer()
                     if let elapsed = item.elapsedText {
                         Label(elapsed, systemImage: "clock")
