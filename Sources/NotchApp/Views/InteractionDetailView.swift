@@ -2,6 +2,35 @@ import AppKit
 import HerdrClient
 import SwiftUI
 
+enum InteractionChoiceIntentResolver {
+    static func intent(
+        for choice: InteractionDisplayChoice,
+        selectedChoicePreview: String?
+    ) -> InteractionResponseIntent {
+        choice.isChecked.map { .setChoice(choice.index, checked: !$0) }
+            ?? (selectedChoicePreview != nil
+                ? .previewChoice(choice.index)
+                : .selectChoice(choice.index))
+    }
+}
+
+struct InteractionChoiceButton<Label: View>: View {
+    let identifier: String
+    let isDisabled: Bool
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
 /// Agent-neutral rendering for the normalized interaction contract.
 struct InteractionDetailView: View {
     let interaction: PendingInteraction
@@ -190,11 +219,16 @@ struct InteractionDetailView: View {
                 textEntry(submit: { .submitChoiceText(choice.index, $0) })
             }
         } else if display.choicesAreActionable {
-            Button { respond(choiceIntent(choice)) } label: { choiceContent(choice) }
-                .buttonStyle(.plain).disabled(phase.isBusy)
-                .help(display.selectedChoicePreview == nil
-                    ? "Choose \(choice.label)"
-                    : "Preview \(choice.label) without submitting")
+            InteractionChoiceButton(
+                identifier: "interaction-choice-\(choice.index)",
+                isDisabled: phase.isBusy,
+                action: { respond(choiceIntent(choice)) }
+            ) {
+                choiceContent(choice)
+            }
+            .help(display.selectedChoicePreview == nil
+                ? "Choose \(choice.label)"
+                : "Preview \(choice.label) without submitting")
         } else {
             choiceContent(choice)
         }
@@ -215,14 +249,7 @@ struct InteractionDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
                     if let description = choice.description {
-                        Text(description)
-                            .font(.system(
-                                size: 9,
-                                design: description.contains("\n") ? .monospaced : .default))
-                            .foregroundStyle(.white.opacity(0.58))
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .layoutPriority(1)
+                        choiceDescription(description)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -253,7 +280,7 @@ struct InteractionDetailView: View {
                 Text(preview)
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.62))
-                    .textSelection(.enabled)
+                    .textSelection(.disabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -275,6 +302,21 @@ struct InteractionDetailView: View {
             : "Preview option \(choice.index + 1), \(choice.label), without submitting")
     }
 
+    @ViewBuilder private func choiceDescription(_ description: String) -> some View {
+        let text = Text(description)
+            .font(.system(
+                size: 9,
+                design: description.contains("\n") ? .monospaced : .default))
+            .foregroundStyle(.white.opacity(0.58))
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+        if display.choicesAreActionable {
+            text.textSelection(.disabled)
+        } else {
+            text.textSelection(.enabled)
+        }
+    }
+
     private func textEntry(
         submit intent: @escaping (String) -> InteractionResponseIntent
     ) -> some View {
@@ -291,10 +333,8 @@ struct InteractionDetailView: View {
     }
 
     private func choiceIntent(_ choice: InteractionDisplayChoice) -> InteractionResponseIntent {
-        choice.isChecked.map { .setChoice(choice.index, checked: !$0) }
-            ?? (display.selectedChoicePreview != nil
-                ? .previewChoice(choice.index)
-                : .selectChoice(choice.index))
+        InteractionChoiceIntentResolver.intent(
+            for: choice, selectedChoicePreview: display.selectedChoicePreview)
     }
 
     private func submitText(_ intent: (String) -> InteractionResponseIntent) {

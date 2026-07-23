@@ -162,6 +162,92 @@ struct InteractionResponderTests {
             == ["down", "enter"])
     }
 
+    @Test("captured Claude checkboxes replan toggles from each fresh cursor")
+    func claudeMultiSelectUsesFreshCursor() async throws {
+        let directory = Fixtures.url(
+            "claude-interactions/claude-multiselect-checkbox-question-26732bf99be4.fixture")
+        let shown = try InteractionFixtureInspector().inspect(directory: directory)
+        let firstCursorMoved = multiSelectState(shown, cursor: 1, checked: [])
+        let firstChecked = multiSelectState(shown, cursor: 1, checked: [1])
+        let secondCursorMoved = multiSelectState(shown, cursor: 3, checked: [1])
+        let secondChecked = multiSelectState(shown, cursor: 3, checked: [1, 3])
+        let uncheckCursorMoved = multiSelectState(shown, cursor: 1, checked: [1, 3])
+        let firstUnchecked = multiSelectState(shown, cursor: 1, checked: [3])
+
+        let firstClient = MockClient()
+        let firstResult = try await settlingResponder(
+            provider: ScriptedInteractionProvider(
+                [shown, firstCursorMoved, firstCursorMoved,
+                 firstChecked, firstChecked]),
+            client: firstClient).respond(
+                responseRequest(for: shown, agentID: "claude",
+                                intent: .setChoice(1, checked: true)))
+        #expect(keysSent(by: firstClient) == [["down"], ["enter"]])
+        #expect(firstResult.settledInteraction?.presentation.checkedChoiceIndexes == [1])
+
+        let secondClient = MockClient()
+        let secondResult = try await settlingResponder(
+            provider: ScriptedInteractionProvider(
+                [firstChecked, secondCursorMoved, secondCursorMoved,
+                 secondChecked, secondChecked]),
+            client: secondClient).respond(
+                responseRequest(for: firstChecked, agentID: "claude",
+                                intent: .setChoice(3, checked: true)))
+        #expect(keysSent(by: secondClient) == [["down", "down"], ["enter"]])
+        #expect(secondResult.settledInteraction?.presentation.checkedChoiceIndexes == [1, 3])
+
+        let uncheckClient = MockClient()
+        let uncheckResult = try await settlingResponder(
+            provider: ScriptedInteractionProvider(
+                [secondChecked, uncheckCursorMoved, uncheckCursorMoved,
+                 firstUnchecked, firstUnchecked]),
+            client: uncheckClient).respond(
+                responseRequest(for: secondChecked, agentID: "claude",
+                                intent: .setChoice(1, checked: false)))
+        #expect(keysSent(by: uncheckClient) == [["up", "up"], ["enter"]])
+        #expect(uncheckResult.settledInteraction?.presentation.checkedChoiceIndexes == [3])
+    }
+
+    @Test("Claude checkbox activation is withheld if its cursor does not settle")
+    func claudeMultiSelectDoesNotActivateStaleCursor() async throws {
+        let directory = Fixtures.url(
+            "claude-interactions/claude-multiselect-checkbox-question-26732bf99be4.fixture")
+        let shown = try InteractionFixtureInspector().inspect(directory: directory)
+        let provider = ScriptedInteractionProvider(
+            [shown, shown, shown, shown, shown])
+        let client = MockClient()
+
+        await #expect(throws: InteractionResponderError.choiceCursorDidNotSettle(
+            targetIndex: 2)) {
+            try await settlingResponder(provider: provider, client: client).respond(
+                responseRequest(for: shown, agentID: "claude",
+                                intent: .setChoice(2, checked: true)))
+        }
+        #expect(keysSent(by: client) == [["down", "down"]])
+    }
+
+    @Test("Claude multi-select submit waits for its explicit confirmation")
+    func claudeMultiSelectSubmit() async throws {
+        let directory = Fixtures.url(
+            "claude-interactions/claude-multiselect-checkbox-question-26732bf99be4.fixture")
+        let captured = try InteractionFixtureInspector().inspect(directory: directory)
+        let shown = multiSelectWizardState(captured, activeStep: 0)
+        let confirmation = PromptClassifier().classifyInteraction(
+            paneID: shown.paneID,
+            agent: "claude",
+            text: Fixtures.string("prompts/live-review-submit-detection.txt"),
+            currentTabLabel: "Submit")
+        #expect(confirmation.kind == .reviewSubmit)
+        let provider = ScriptedInteractionProvider(
+            [shown, confirmation, confirmation, confirmation, confirmation])
+        let client = MockClient()
+
+        _ = try await settlingResponder(provider: provider, client: client).respond(
+            responseRequest(for: shown, agentID: "claude", intent: .submit))
+
+        #expect(keysSent(by: client) == [["right"], ["enter"]])
+    }
+
     @Test("responder owns redraw settling and returns the stable next question")
     func settlesNextQuestion() async throws {
         let current = question(title: "Question one", cursor: 0)
@@ -228,12 +314,96 @@ struct InteractionResponderTests {
             sleep: { _ in })
     }
 
+    private func settlingResponder(
+        provider: any InteractionProviding,
+        client: MockClient
+    ) -> InteractionResponder {
+        InteractionResponder(
+            provider: provider,
+            actions: Actions(client: client, terminal: MockTerminal()),
+            settleAttempts: 4,
+            settleDelayNanoseconds: 0,
+            sleep: { _ in })
+    }
+
     private func responseRequest(for interaction: PendingInteraction,
                                  intent: InteractionResponseIntent)
         -> InteractionResponseRequest {
+        responseRequest(for: interaction, agentID: "codex", intent: intent)
+    }
+
+    private func responseRequest(
+        for interaction: PendingInteraction,
+        agentID: String,
+        intent: InteractionResponseIntent
+    ) -> InteractionResponseRequest {
         InteractionResponseRequest(
-            paneID: interaction.paneID, agentID: "codex", paneRevision: 1,
+            paneID: interaction.paneID, agentID: agentID, paneRevision: 1,
             expectedFingerprint: interaction.fingerprint, intent: intent)
+    }
+
+    private func keysSent(by client: MockClient) -> [[String]] {
+        client.recorded.compactMap { request in
+            request.params["keys"]?.arrayValue?.compactMap(\.stringValue)
+        }
+    }
+
+    private func multiSelectState(
+        _ interaction: PendingInteraction,
+        cursor: Int,
+        checked: [Int]
+    ) -> PendingInteraction {
+        PendingInteraction(
+            paneID: interaction.paneID,
+            interactionID: interaction.interactionID,
+            kind: interaction.kind,
+            title: interaction.title,
+            body: interaction.body,
+            progress: interaction.progress,
+            choices: interaction.choices,
+            steps: interaction.steps,
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: cursor,
+                checkedChoiceIndexes: checked,
+                activeStepIndex: interaction.presentation.activeStepIndex,
+                mechanism: interaction.presentation.mechanism,
+                selectedChoicePreview: interaction.presentation.selectedChoicePreview),
+            capabilities: interaction.capabilities,
+            evidence: interaction.evidence,
+            contentEvidence: interaction.contentEvidence,
+            userPromptContext: interaction.userPromptContext,
+            safetyState: interaction.safetyState)
+    }
+
+    private func multiSelectWizardState(
+        _ interaction: PendingInteraction,
+        activeStep: Int
+    ) -> PendingInteraction {
+        PendingInteraction(
+            paneID: interaction.paneID,
+            interactionID: interaction.interactionID,
+            kind: interaction.kind,
+            title: interaction.title,
+            body: interaction.body,
+            progress: InteractionProgress(current: 1, total: 1, unanswered: 0),
+            choices: interaction.choices,
+            steps: [
+                InteractionStep(
+                    label: "Improvements", isAnswered: true, isSubmit: false),
+                InteractionStep(
+                    label: "Submit", isAnswered: true, isSubmit: true),
+            ],
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: interaction.presentation.selectedChoiceIndex,
+                checkedChoiceIndexes: interaction.presentation.checkedChoiceIndexes,
+                activeStepIndex: activeStep,
+                mechanism: interaction.presentation.mechanism,
+                selectedChoicePreview: interaction.presentation.selectedChoicePreview),
+            capabilities: interaction.capabilities.union([.navigateSteps]),
+            evidence: interaction.evidence,
+            contentEvidence: interaction.contentEvidence,
+            userPromptContext: interaction.userPromptContext,
+            safetyState: interaction.safetyState)
     }
 
     private var evidence: InteractionEvidence {

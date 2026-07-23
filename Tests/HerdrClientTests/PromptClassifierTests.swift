@@ -71,15 +71,19 @@ struct PromptClassifierTests {
         #expect(value.capabilities.contains(.selectMany))
         let plan = try InteractionResponsePlanner().plan(
             .setChoice(3, checked: true), for: value)
-        #expect(plan.flattenedKeys == ["down", "down", "down", "space"])
+        #expect(plan.flattenedKeys == ["down", "down", "down", "enter"])
     }
 
     @Test("review prompt remains actionable")
     func review() {
-        let value = parse("prompts/live-review-submit-detection.txt")
-        #expect(value.kind == .question)
+        let value = parse(
+            "prompts/live-review-submit-detection.txt",
+            currentTabLabel: "Submit")
+        #expect(value.kind == .reviewSubmit)
         #expect(value.title == "Ready to submit your answers?")
         #expect(value.choices.map(\.label) == ["Submit answers", "Cancel"])
+        #expect(value.choices.map(\.kind) == [.submit, .cancel])
+        #expect(value.presentation.activeStepIndex == 3)
     }
 
     @Test("unknown or idle content never fabricates actions")

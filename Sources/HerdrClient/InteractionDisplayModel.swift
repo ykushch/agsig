@@ -34,6 +34,7 @@ public struct InteractionDisplayModel: Sendable, Equatable {
     public let showsCancel: Bool
     public let showsManualControls: Bool
     public let exposesStructuredSubmit: Bool
+    public let showsExplicitSubmit: Bool
     public let approvalOnceAvailable: Bool
     public let approvalPersistChoiceIndex: Int?
     public let supportMessage: String?
@@ -82,6 +83,10 @@ public struct InteractionDisplayModel: Sendable, Equatable {
             || (interaction.presentation.mechanism != .ambiguous
             && interaction.presentation.mechanism != .manual
             && interaction.kind != .unknown)
+        showsExplicitSubmit = interaction.kind == .reviewSubmit
+            || (interaction.presentation.mechanism == .multiSelect
+                && interaction.steps.contains(where: \.isSubmit)
+                && interaction.presentation.activeStepIndex != nil)
         approvalOnceAvailable = interaction.kind == .approval
             && (isNative || (interaction.presentation.mechanism == .explicitShortcut
                 && interaction.choices.first?.shortcutKeys == ["y"]))

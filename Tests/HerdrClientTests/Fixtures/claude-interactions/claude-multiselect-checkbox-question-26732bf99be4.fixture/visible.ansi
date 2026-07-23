@@ -1,0 +1,16 @@
+[0m[1m[38;2;255;255;255mWhich improvements should we include?[0m
+
+[0m[38;2;177;185;249m❯ [0m[38;2;153;153;153m1. [0m[ ] [0m[38;2;177;185;249mImprove reliability[0m
+  [0m[38;2;153;153;153mHarden error handling and edge cases so the blog builds and renders dependably.[0m
+  [0m[38;2;153;153;153m2.[0m [ ] Improve performance
+  [0m[38;2;153;153;153mOptimize build output, asset loading, and page render speed.[0m
+  [0m[38;2;153;153;153m3.[0m [ ] Improve accessibility
+  [0m[38;2;153;153;153mAdd semantic markup, alt text, and keyboard/contrast support for all users.[0m
+  [0m[38;2;153;153;153m4. [0m[ ] Improve documentation
+  [0m[38;2;153;153;153mExpand CLAUDE.md and inline docs so future work is easier to pick up.[0m
+  [0m[38;2;153;153;153m5. [0m[ ] [0m[38;2;153;153;153mType something[0m
+     [0m[1mSubmit[0m
+[0m[38;2;153;153;153m──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+  6. Chat about this
+
+[0m[38;2;153;153;153mEnter to select · ↑/↓ to navigate · Esc to cancel[0m

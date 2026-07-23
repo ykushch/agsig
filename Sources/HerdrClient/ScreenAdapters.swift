@@ -120,6 +120,11 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
         let title = PromptClassifier.parseQuestionTitle(text)
         let parsedSteps = PromptClassifier.parseWizardSteps(
             text, currentLabel: input.currentTabLabel)
+        let activeStepIndex = parsedSteps.firstIndex(where: \.isCurrent)
+        let isSubmitReview = activeStepIndex.map { parsedSteps[$0].isSubmit } == true
+            && options.contains {
+                $0.label.caseInsensitiveCompare("Submit answers") == .orderedSame
+            }
         let isMultiSelect = options.contains { $0.isChecked != nil }
         let mechanism: InteractionMechanism = if isMultiSelect {
             .multiSelect
@@ -144,19 +149,26 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
         let nonSubmitSteps = parsedSteps.filter { !$0.isSubmit }
         let progress: InteractionProgress? = nonSubmitSteps.isEmpty ? nil
             : InteractionProgress(
-                current: parsedSteps.firstIndex(where: \.isCurrent).map { $0 + 1 },
+                current: isSubmitReview
+                    ? nonSubmitSteps.count : activeStepIndex.map { $0 + 1 },
                 total: nonSubmitSteps.count,
                 unanswered: nonSubmitSteps.filter { !$0.isAnswered }.count)
         return PendingInteraction(
             paneID: input.paneID,
-            kind: isApproval ? .approval : .question,
+            kind: isApproval ? .approval : isSubmitReview ? .reviewSubmit : .question,
             title: title,
             body: isApproval
                 ? PromptClassifier.interactionBody(text, excluding: title) : nil,
             progress: progress,
             choices: options.map {
                 InteractionChoice(
-                    kind: $0.isTextEntry ? .textEntry : .option,
+                    kind: $0.isTextEntry ? .textEntry
+                        : isSubmitReview
+                            && $0.label.caseInsensitiveCompare("Submit answers") == .orderedSame
+                            ? .submit
+                            : isSubmitReview
+                                && $0.label.caseInsensitiveCompare("Cancel") == .orderedSame
+                                ? .cancel : .option,
                     label: $0.label, description: $0.description)
             },
             steps: parsedSteps.map {
@@ -168,7 +180,7 @@ public struct ClaudeScreenAdapter: ScreenAdapter {
                 checkedChoiceIndexes: options.indices.filter {
                     options[$0].isChecked == true
                 },
-                activeStepIndex: parsedSteps.firstIndex(where: \.isCurrent),
+                activeStepIndex: activeStepIndex,
                 mechanism: mechanism,
                 selectedChoicePreview: PromptClassifier.selectedChoicePreview(text)),
             capabilities: capabilities,

@@ -85,7 +85,8 @@ public struct InteractionDiagnosticBuilder: Sendable {
                     responseIntent: .navigateToStep(index), interaction: interaction))
             }
         }
-        if interaction.kind == .reviewSubmit {
+        if InteractionDisplayModel(
+            interaction: interaction).showsExplicitSubmit {
             values.append(proposal(
                 intent: "submit", responseIntent: .submit,
                 interaction: interaction))

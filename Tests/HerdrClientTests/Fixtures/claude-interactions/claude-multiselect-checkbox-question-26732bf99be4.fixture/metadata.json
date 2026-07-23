@@ -1,0 +1,83 @@
+{
+  "annotations" : {
+    "expected_response_plans" : {
+      "cancel" : [
+        "esc"
+      ],
+      "check_1" : [
+        "enter"
+      ],
+      "check_2" : [
+        "down",
+        "enter"
+      ],
+      "check_3" : [
+        "down",
+        "down",
+        "enter"
+      ],
+      "check_4" : [
+        "down",
+        "down",
+        "down",
+        "enter"
+      ]
+    },
+    "interaction_kind" : "question",
+    "manifest_rule" : "live_complex_multiselect_question",
+    "name" : "claude-multiselect-checkbox-question",
+    "notes" : [
+      "Captured from a disposable Claude Code session using AskUserQuestion with multiSelect enabled.",
+      "This is the user-reported checkbox shape whose description text must remain clickable in NotchApp.",
+      "Live verification confirmed Claude's documented Enter key toggles the focused checkbox; Space can toggle the previously focused row after navigation.",
+      "The prompt was captured before any checkbox was toggled and was cancelled without submission."
+    ],
+    "observed_checked_indexes" : [
+
+    ],
+    "observed_cursor_index" : 0,
+    "option_descriptions" : [
+      "Harden error handling and edge cases so the blog builds and renders dependably.",
+      "Optimize build output, asset loading, and page render speed.",
+      "Add semantic markup, alt text, and keyboard/contrast support for all users.",
+      "Expand CLAUDE.md and inline docs so future work is easier to pick up.",
+      "Submit",
+      ""
+    ],
+    "option_labels" : [
+      "Improve reliability",
+      "Improve performance",
+      "Improve accessibility",
+      "Improve documentation",
+      "Type something",
+      "Chat about this"
+    ],
+    "response_mechanism" : "multi_select",
+    "title" : "Which improvements should we include?"
+  },
+  "artifact_sha256" : "26732bf99be492931d5f4f7206bae6f2832cbf674a3d8c8f0817d6a95ebbf555",
+  "fixture_detection_sha256" : "6b6c5ae7995ce59d0f7fa72e7dedcf24c240ba854dbda356b9cce089f71d2e5c",
+  "fixture_visible_ansi_sha256" : "73ded7b7f6af066dec9ede96253c70f48dee681a548a9ee2dd481b90664ff8c3",
+  "region" : {
+    "end_marker" : "Esc to cancel",
+    "start_marker" : "Which improvements should we include?"
+  },
+  "sanitization" : "none",
+  "schema_version" : 1,
+  "source_capture" : {
+    "agent" : "claude",
+    "agent_status_after" : "blocked",
+    "agent_status_before" : "blocked",
+    "captured_at" : "2026-07-23T21:01:52Z",
+    "detection_byte_count" : 4230,
+    "detection_sha256" : "382095e9b52b3c61f5a322908e692f8e719ac7a1c251d7e047bdb5f375dac726",
+    "herdr_protocol" : 17,
+    "herdr_version" : "0.7.5",
+    "pane_id" : "w1:p4",
+    "pane_revision_after" : 4,
+    "pane_revision_before" : 4,
+    "terminal_id" : "term_6572430e3fb594",
+    "visible_ansi_byte_count" : 7330,
+    "visible_ansi_sha256" : "3eb4887f2aa0b7db5c80ddc03b2054473cedb642988d4a8c132369ae0ed147b8"
+  }
+}

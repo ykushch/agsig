@@ -1,0 +1,16 @@
+Which improvements should we include?
+
+❯ 1. [ ] Improve reliability
+  Harden error handling and edge cases so the blog builds and renders dependably.
+  2. [ ] Improve performance
+  Optimize build output, asset loading, and page render speed.
+  3. [ ] Improve accessibility
+  Add semantic markup, alt text, and keyboard/contrast support for all users.
+  4. [ ] Improve documentation
+  Expand CLAUDE.md and inline docs so future work is easier to pick up.
+  5. [ ] Type something
+     Submit
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  6. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel

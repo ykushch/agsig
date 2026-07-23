@@ -90,6 +90,19 @@ struct InteractionActionShelf: View {
                 .tint(.green.opacity(0.78))
                 .help("Submit “\(interaction.choices[selected].label)”")
             }
+            if display.showsExplicitSubmit {
+                Button {
+                    model.respondToSelectedInteraction(.submit)
+                } label: {
+                    Label("Submit", systemImage: "checkmark")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green.opacity(0.78))
+                .help(interaction.kind == .reviewSubmit
+                    ? "Submit these answers"
+                    : "Review and submit the selected answers")
+                .accessibilityIdentifier("interaction-submit")
+            }
             safetyIndicator
             if display.showsCancel {
                 interactionMenu(includesBackToChoices: false)

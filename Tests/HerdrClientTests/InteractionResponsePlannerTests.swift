@@ -106,14 +106,39 @@ struct InteractionResponsePlannerTests {
     func checkboxToggle() throws {
         let unchecked = question(mechanism: .multiSelect, cursor: 0,
                                  checked: [], selectMany: true)
-        #expect(try planner.plan(.setChoice(2, checked: true), for: unchecked).flattenedKeys
-            == ["down", "down", "space"])
+        let movedToggle = try planner.plan(
+            .setChoice(2, checked: true), for: unchecked)
+        #expect(movedToggle.flattenedKeys == ["down", "down", "enter"])
+        #expect(movedToggle.operations == [
+            .sendKeys(["down", "down", "enter"]),
+        ])
 
         let freshlyChecked = question(mechanism: .multiSelect, cursor: 2,
                                       checked: [2], selectMany: true)
         #expect(try planner.plan(.setChoice(2, checked: true), for: freshlyChecked) == .noOp)
         #expect(try planner.plan(.setChoice(2, checked: false), for: freshlyChecked).flattenedKeys
-            == ["space"])
+            == ["enter"])
+    }
+
+    @Test("multi-select submit navigates to Claude's explicit confirmation")
+    func multiSelectSubmit() throws {
+        let interaction = PendingInteraction(
+            paneID: "w1:p1", kind: .question, title: "Choose rules",
+            choices: (1...4).map { InteractionChoice(label: "Rule \($0)") },
+            steps: [
+                InteractionStep(label: "Depth", isAnswered: true, isSubmit: false),
+                InteractionStep(label: "Placement", isAnswered: true, isSubmit: false),
+                InteractionStep(label: "Rules", isAnswered: true, isSubmit: false),
+                InteractionStep(label: "Submit", isAnswered: true, isSubmit: true),
+            ],
+            presentation: InteractionPresentation(
+                selectedChoiceIndex: 0, activeStepIndex: 2,
+                mechanism: .multiSelect),
+            capabilities: [.selectMany, .navigateSteps, .deny],
+            evidence: evidence)
+
+        #expect(try planner.plan(.submit, for: interaction).flattenedKeys
+            == ["right", "enter"])
     }
 
     @Test("text entry plans text separately from submission")
@@ -270,6 +295,20 @@ struct InteractionDisplayModelTests {
         #expect(question.showsBeginTextEntry)
         #expect(!question.showsTextEntry)
         #expect(question.showsCancel)
+
+        let multiSelect = InteractionDisplayModel(
+            interaction: classifier.classifyInteraction(
+                paneID: "w1:p4", agent: "claude",
+                text: Fixtures.string("prompts/live-askquestion-multiselect-detection.txt"),
+                currentTabLabel: "Topics"))
+        #expect(multiSelect.showsExplicitSubmit)
+
+        let review = InteractionDisplayModel(
+            interaction: classifier.classifyInteraction(
+                paneID: "w1:p4", agent: "claude",
+                text: Fixtures.string("prompts/live-review-submit-detection.txt"),
+                currentTabLabel: "Submit"))
+        #expect(review.showsExplicitSubmit)
 
         let notes = display(
             "codex-plan-free-text-notes-q3-7cbd68a04fb3.fixture")

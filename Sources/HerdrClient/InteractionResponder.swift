@@ -103,6 +103,8 @@ public enum InteractionResponderError: Error, Sendable, Equatable {
                           actual: PendingInteraction)
     case unsupportedIntent(kind: InteractionKind,
                            intent: InteractionResponseIntent)
+    case choiceCursorDidNotSettle(targetIndex: Int)
+    case submitConfirmationDidNotSettle
 }
 
 extension InteractionResponderError: LocalizedError {
@@ -112,6 +114,10 @@ extension InteractionResponderError: LocalizedError {
             "The interaction changed before the response was sent. Nothing was sent."
         case .unsupportedIntent:
             "That response is not supported for this interaction."
+        case let .choiceCursorDidNotSettle(targetIndex):
+            "The option cursor did not settle on option \(targetIndex + 1). Nothing was selected."
+        case .submitConfirmationDidNotSettle:
+            "Claude's submit confirmation did not settle. Nothing was submitted."
         }
     }
 }
@@ -182,14 +188,23 @@ public struct InteractionResponder: InteractionResponding, Sendable {
         try validate(request.intent, for: fresh.kind)
         let plan = try planner.plan(request.intent, for: fresh)
         await onPhase(.sending)
-        for operation in plan.operations {
-            switch operation {
-            case let .sendKeys(keys):
-                guard !keys.isEmpty else { continue }
-                _ = try await actions.sendRawKeys(pane: request.paneID, keys: keys)
-            case let .sendText(text):
-                _ = try await actions.reply(
-                    pane: request.paneID, text: text, submit: false)
+        if fresh.presentation.mechanism == .multiSelect,
+           case .submit = request.intent {
+            try await sendMultiSelectSubmit(plan, request: request)
+        } else if fresh.presentation.mechanism == .multiSelect,
+           case let .setChoice(targetIndex, _) = request.intent {
+            try await sendCheckboxToggle(
+                plan, targetIndex: targetIndex, request: request)
+        } else {
+            for operation in plan.operations {
+                switch operation {
+                case let .sendKeys(keys):
+                    guard !keys.isEmpty else { continue }
+                    _ = try await actions.sendRawKeys(pane: request.paneID, keys: keys)
+                case let .sendText(text):
+                    _ = try await actions.reply(
+                        pane: request.paneID, text: text, submit: false)
+                }
             }
         }
         guard !plan.operations.isEmpty else {
@@ -200,6 +215,112 @@ public struct InteractionResponder: InteractionResponding, Sendable {
         let settled = await settle(after: fresh, request: request)
         return InteractionResponseResult(
             validatedInteraction: fresh, settledInteraction: settled)
+    }
+
+    /// Claude redraws its checkbox cursor before replacing the key handler that
+    /// captures that cursor. Sending movement and Enter together can therefore
+    /// toggle the previously focused row. Wait for two fresh reads at the target
+    /// before activating it; if the cursor never settles, send no Enter.
+    private func sendCheckboxToggle(
+        _ plan: InteractionResponsePlan,
+        targetIndex: Int,
+        request: InteractionResponseRequest
+    ) async throws {
+        guard var keys = plan.flattenedKeys, keys.last == "enter" else {
+            throw InteractionResponderError.unsupportedIntent(
+                kind: .question, intent: request.intent)
+        }
+        keys.removeLast()
+        if !keys.isEmpty {
+            _ = try await actions.sendRawKeys(pane: request.paneID, keys: keys)
+            var consecutiveTargetReads = 0
+            for _ in 0..<settleAttempts {
+                await sleep(settleDelayNanoseconds)
+                guard let observed = try? await provider.interaction(
+                    paneID: request.paneID, agentID: request.agentID,
+                    paneRevision: request.paneRevision) else {
+                    consecutiveTargetReads = 0
+                    continue
+                }
+                guard observed.fingerprint == request.expectedFingerprint else {
+                    throw InteractionResponderError.staleInteraction(
+                        expected: request.expectedFingerprint, actual: observed)
+                }
+                if observed.presentation.selectedChoiceIndex == targetIndex {
+                    consecutiveTargetReads += 1
+                    if consecutiveTargetReads == 2 { break }
+                } else {
+                    consecutiveTargetReads = 0
+                }
+            }
+            guard consecutiveTargetReads == 2 else {
+                throw InteractionResponderError.choiceCursorDidNotSettle(
+                    targetIndex: targetIndex)
+            }
+        }
+        _ = try await actions.sendRawKeys(
+            pane: request.paneID, keys: ["enter"])
+    }
+
+    /// A Claude multi-select answer is committed from a separate Submit tab.
+    /// Navigate there first, wait until the parser sees the stable confirmation
+    /// interaction, then plan and send its explicit submit action.
+    private func sendMultiSelectSubmit(
+        _ plan: InteractionResponsePlan,
+        request: InteractionResponseRequest
+    ) async throws {
+        guard var keys = plan.flattenedKeys, keys.last == "enter" else {
+            throw InteractionResponderError.unsupportedIntent(
+                kind: .question, intent: request.intent)
+        }
+        keys.removeLast()
+        guard !keys.isEmpty else {
+            throw InteractionResponderError.submitConfirmationDidNotSettle
+        }
+        _ = try await actions.sendRawKeys(pane: request.paneID, keys: keys)
+
+        var confirmation: PendingInteraction?
+        var previousFingerprint: InteractionFingerprint?
+        var stableCount = 0
+        for _ in 0..<settleAttempts {
+            await sleep(settleDelayNanoseconds)
+            guard let observed = try? await provider.interaction(
+                paneID: request.paneID, agentID: request.agentID,
+                paneRevision: request.paneRevision),
+                  observed.kind == .reviewSubmit,
+                  observed.paneID == request.paneID,
+                  observed.evidence.agentID == request.agentID,
+                  let selected = observed.presentation.selectedChoiceIndex,
+                  observed.choices.indices.contains(selected),
+                  observed.choices[selected].kind == .submit else {
+                confirmation = nil
+                previousFingerprint = nil
+                stableCount = 0
+                continue
+            }
+            if observed.fingerprint == previousFingerprint {
+                stableCount += 1
+            } else {
+                previousFingerprint = observed.fingerprint
+                stableCount = 1
+            }
+            confirmation = observed
+            if stableCount == 2 { break }
+        }
+        guard stableCount == 2, let confirmation else {
+            throw InteractionResponderError.submitConfirmationDidNotSettle
+        }
+        let confirmationPlan = try planner.plan(.submit, for: confirmation)
+        for operation in confirmationPlan.operations {
+            switch operation {
+            case let .sendKeys(keys):
+                guard !keys.isEmpty else { continue }
+                _ = try await actions.sendRawKeys(pane: request.paneID, keys: keys)
+            case let .sendText(text):
+                _ = try await actions.reply(
+                    pane: request.paneID, text: text, submit: false)
+            }
+        }
     }
 
     private func validate(_ intent: InteractionResponseIntent,

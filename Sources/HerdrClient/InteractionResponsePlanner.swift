@@ -141,6 +141,21 @@ public struct InteractionResponsePlanner: Sendable {
             guard interaction.presentation.mechanism != .ambiguous else {
                 throw InteractionPlanningError.ambiguousMechanism
             }
+            if interaction.presentation.mechanism == .multiSelect {
+                guard interaction.capabilities.contains(.selectMany),
+                      let current = interaction.presentation.activeStepIndex,
+                      let submit = interaction.steps.firstIndex(where: \.isSubmit) else {
+                    throw InteractionPlanningError.unsupportedIntent
+                }
+                let delta = submit - current
+                let movement = Array(
+                    repeating: delta >= 0 ? "right" : "left",
+                    count: abs(delta))
+                guard !movement.isEmpty else {
+                    throw InteractionPlanningError.unsupportedIntent
+                }
+                return keys(movement + ["enter"])
+            }
             guard interaction.kind == .reviewSubmit
                     || interaction.presentation.mechanism == .textEntry
                     || (interaction.kind == .approval
@@ -183,14 +198,25 @@ public struct InteractionResponsePlanner: Sendable {
                 throw InteractionPlanningError.ambiguousMechanism
             }
             return keys(interaction.choices[index].shortcutKeys)
-        case .arrowNavigate, .multiSelect:
+        case .arrowNavigate:
             guard let cursor = interaction.presentation.selectedChoiceIndex else {
                 throw InteractionPlanningError.missingCursor
             }
             let delta = index - cursor
             let movement = Array(repeating: delta >= 0 ? "down" : "up", count: abs(delta))
-            return keys(movement + [toggle || interaction.presentation.mechanism == .multiSelect
-                                    ? "space" : "enter"])
+            return keys(movement + [toggle ? "space" : "enter"])
+        case .multiSelect:
+            guard let cursor = interaction.presentation.selectedChoiceIndex else {
+                throw InteractionPlanningError.missingCursor
+            }
+            let delta = index - cursor
+            let movement = Array(repeating: delta >= 0 ? "down" : "up", count: abs(delta))
+            // Claude documents "Enter to select" for checkbox prompts. Space
+            // can toggle the previously-focused row, while batching movement
+            // and Enter as herdr key events can update its visual and logical
+            // cursors out of order. The responder preserves these semantic keys
+            // while separating movement from activation at a verified cursor.
+            return keys(movement + ["enter"])
         case .ambiguous:
             throw InteractionPlanningError.ambiguousMechanism
         case .textEntry, .manual:

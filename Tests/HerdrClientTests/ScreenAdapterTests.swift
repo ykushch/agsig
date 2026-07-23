@@ -314,4 +314,30 @@ struct ClaudeScreenAdapterRegressionTests {
             .previewChoice(2), for: interaction).flattenedKeys
             == ["down", "down"])
     }
+
+    @Test("captured Claude multi-select preserves actionable checkbox state")
+    func capturedClaudeMultiSelect() throws {
+        let directory = Fixtures.url(
+            "claude-interactions/claude-multiselect-checkbox-question-26732bf99be4.fixture")
+        let metadata = try PaneFixtureExtractor().verifyFixture(at: directory)
+        let interaction = try InteractionFixtureInspector().inspect(directory: directory)
+        let display = InteractionDisplayModel(interaction: interaction)
+
+        #expect(interaction.kind == .question)
+        #expect(interaction.title == metadata.annotations.title)
+        #expect(interaction.presentation.mechanism == .multiSelect)
+        #expect(interaction.presentation.selectedChoiceIndex
+            == metadata.annotations.observedCursorIndex)
+        #expect(interaction.presentation.checkedChoiceIndexes
+            == metadata.annotations.observedCheckedIndexes)
+        #expect(interaction.choices.map(\.label) == metadata.annotations.optionLabels)
+        #expect(interaction.choices.map { $0.description ?? "" }
+            == metadata.annotations.optionDescriptions)
+        #expect(interaction.capabilities.contains(.selectMany))
+        #expect(display.choicesAreActionable)
+        #expect(display.choices.allSatisfy { $0.isChecked == false })
+        #expect(try InteractionResponsePlanner().plan(
+            .setChoice(3, checked: true), for: interaction).flattenedKeys
+            == metadata.annotations.expectedResponsePlans["check_4"])
+    }
 }
