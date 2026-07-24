@@ -152,6 +152,9 @@ final class NotchViewModel {
     /// to be missing (spec 09 surfaces a hint instead of silently failing).
     var accessibilityMissing: Bool = false
     private(set) var jumpNotice: JumpNotice?
+    /// Confirms the brew command landed on the pasteboard, same idea as the
+    /// jump notice's "Attach command copied."
+    private(set) var updateCommandCopied = false
 
     /// Connection state for the robustness UX (spec 10d): drives a "herdr not
     /// running" empty state vs. a live view.
@@ -162,6 +165,9 @@ final class NotchViewModel {
     /// source of truth; these are side-effects on state transitions.
     @ObservationIgnored var soundEngine: SoundEngine?
     @ObservationIgnored var settings: Settings?
+    /// Update state lives in its own observable object; reading through this
+    /// reference inside a view body still tracks the checker's own changes.
+    @ObservationIgnored var updateChecker: UpdateChecker?
 
     /// The configured hotkey modifier symbols (e.g. "^⌥") for UI hints. Falls back
     /// to "^⌥" if settings aren't wired yet.
@@ -636,6 +642,27 @@ final class NotchViewModel {
 
     func dismissJumpNotice() {
         jumpNotice = nil
+    }
+
+    // MARK: Updates
+
+    var pendingUpdate: UpdateManifest? { updateChecker?.pendingUpdate }
+    var updateAdvice: UpdateAdvice.Guidance? { updateChecker?.advice }
+
+    func copyUpdateCommand() {
+        guard let command = updateAdvice?.command else { return }
+        UpdateActions.copy(command)
+        updateCommandCopied = true
+    }
+
+    func openUpdateLink() {
+        guard let link = updateAdvice?.primaryLink else { return }
+        UpdateActions.open(link)
+    }
+
+    func skipPendingUpdate() {
+        updateChecker?.skipPendingUpdate()
+        updateCommandCopied = false
     }
 
     private func handleJumpResult(_ result: ActionResult, terminalID: String?) {

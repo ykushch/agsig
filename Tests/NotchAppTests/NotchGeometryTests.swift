@@ -108,6 +108,28 @@ struct NotchGeometryTests {
         #expect(geometry.overviewHeight(agentCount: 2, bannerCount: 2) == 322)
     }
 
+    @Test("The update notice reserves more room than a one-line banner")
+    func adaptiveOverviewUpdateBanner() {
+        let geometry = NotchGeometry(metrics: NotchScreenMetrics(
+            frame: screenFrame,
+            visibleFrame: screenFrame,
+            safeAreaTop: 32,
+            auxiliaryTopLeftArea: CGRect(x: 0, y: 950, width: 656, height: 32),
+            auxiliaryTopRightArea: CGRect(x: 856, y: 950, width: 656, height: 32)))
+
+        let plain = geometry.overviewHeight(agentCount: 2, bannerCount: 0)
+        let oneBanner = geometry.overviewHeight(agentCount: 2, bannerCount: 1)
+        let withUpdate = geometry.overviewHeight(agentCount: 2, bannerCount: 0, hasUpdateBanner: true)
+
+        #expect(withUpdate > oneBanner)
+        // Heights round to even values, so compare the reserved space, not an
+        // exact sum.
+        #expect(abs(withUpdate - plain - NotchGeometry.overviewUpdateBannerHeight - 7) <= 2)
+        // Stacking the update notice on top of a warning still fits the cap.
+        #expect(geometry.overviewHeight(agentCount: 2, bannerCount: 1, hasUpdateBanner: true)
+            <= geometry.maximumExpandedHeight)
+    }
+
     @Test("Requested heights are rounded, clamped, and top-anchored")
     func requestedExpandedFrame() {
         let geometry = NotchGeometry(metrics: NotchScreenMetrics(

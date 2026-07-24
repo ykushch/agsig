@@ -123,6 +123,9 @@ private struct NotchOverviewSurface: View {
                         systemImage: "keyboard.badge.ellipsis",
                         color: .orange)
                 }
+                if let advice = model.updateAdvice {
+                    UpdateNoticeBanner(model: model, advice: advice)
+                }
             }
             .padding(14)
             .reportNotchHeight(.overviewContent)
@@ -297,6 +300,51 @@ private struct StaleDraftBanner: View {
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.16)))
         .foregroundStyle(.orange)
+    }
+}
+
+/// The landing place for the compact notch's update dot: the badge is only a
+/// signal, so expanding has to lead somewhere that says what to actually do.
+/// Dismissing means "skip this version", not "hide until relaunch".
+private struct UpdateNoticeBanner: View {
+    @Bindable var model: NotchViewModel
+    let advice: UpdateAdvice.Guidance
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(advice.headline)
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(model.updateCommandCopied ? "Copied. Run it in a terminal." : advice.detail)
+                        .foregroundStyle(NotchPalette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                Button(action: model.skipPendingUpdate) {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel("Skip this version")
+            }
+            HStack(spacing: 10) {
+                if let title = advice.commandActionTitle {
+                    Button(title, action: model.copyUpdateCommand)
+                }
+                Button(advice.primaryLinkActionTitle, action: model.openUpdateLink)
+                Spacer()
+            }
+            .foregroundStyle(NotchPalette.updateAccent)
+            Text(advice.accessibilityReminder)
+                .font(.system(size: 9))
+                .foregroundStyle(NotchPalette.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.system(size: 10, weight: .medium))
+        .buttonStyle(.plain)
+        .padding(9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 9).fill(NotchPalette.updateAccent.opacity(0.13)))
     }
 }
 

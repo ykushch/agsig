@@ -195,7 +195,8 @@ final class NotchWindowController {
                 + (viewModel.jumpNotice == nil ? 0 : 1)
             surfaceState.prepareOverview(estimatedHeight: geometry.overviewHeight(
                 agentCount: viewModel.agentCount,
-                bannerCount: bannerCount))
+                bannerCount: bannerCount,
+                hasUpdateBanner: viewModel.pendingUpdate != nil))
         case .focused:
             guard let identity = viewModel.selectedInteractionSizingIdentity else { return }
             let interaction = viewModel.selectedInteraction

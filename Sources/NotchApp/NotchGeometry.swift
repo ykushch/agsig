@@ -42,6 +42,9 @@ struct NotchGeometry: Sendable, Equatable {
     static let preferredMaximumExpandedHeight: CGFloat = 420
     static let overviewRowHeight: CGFloat = 58
     static let overviewBannerHeight: CGFloat = 44
+    /// The update notice carries a headline, detail, two actions, and the
+    /// re-grant reminder, so it is materially taller than a one-line banner.
+    static let overviewUpdateBannerHeight: CGFloat = 104
     static let overviewEmptyHeight: CGFloat = 168
 
     let compactWidth: CGFloat
@@ -86,7 +89,7 @@ struct NotchGeometry: Sendable, Equatable {
             height: min(maximumExpandedHeight, max(1, Self.roundHeight(requestedHeight))))
     }
 
-    func overviewHeight(agentCount: Int, bannerCount: Int) -> CGFloat {
+    func overviewHeight(agentCount: Int, bannerCount: Int, hasUpdateBanner: Bool = false) -> CGFloat {
         let header = topContentInset + (topContentInset > 0 ? 5 : 8) + 39
         let content: CGFloat
         if agentCount == 0 {
@@ -95,7 +98,9 @@ struct NotchGeometry: Sendable, Equatable {
             content = CGFloat(agentCount) * Self.overviewRowHeight
         }
         let banners = CGFloat(bannerCount) * Self.overviewBannerHeight
-        let sectionGaps = CGFloat(max(0, (agentCount > 0 ? 1 : 0) + bannerCount - 1)) * 7
+            + (hasUpdateBanner ? Self.overviewUpdateBannerHeight : 0)
+        let sections = (agentCount > 0 ? 1 : 0) + bannerCount + (hasUpdateBanner ? 1 : 0)
+        let sectionGaps = CGFloat(max(0, sections - 1)) * 7
         return clampOverviewHeight(header + 28 + content + banners + sectionGaps)
     }
 

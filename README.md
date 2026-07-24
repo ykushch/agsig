@@ -75,6 +75,25 @@ To build an app bundle from source:
 ./bundle.sh && open build/NotchApp.app
 ```
 
+## Updating
+
+NotchApp checks once a day for a newer release and, when one exists, shows a
+dot on the menu bar icon and a matching accent mark under the notch. It never
+downloads or replaces itself — it tells you what to run:
+
+```bash
+brew upgrade --cask ykushch/tap/notchagent
+```
+
+Manual installs get a direct link to the new archive instead. Because release
+bundles are ad-hoc signed rather than notarized, macOS treats each upgraded copy
+as a new identity, so **re-enable Notch Agent under Accessibility after every
+upgrade** (remove the stale entry with the − button first).
+
+Automatic checks can be turned off under **Settings → Updates**, which also has
+a **Check Now** button. The check is a single unauthenticated GET to GitHub with
+no query parameters and no identifiers.
+
 On first launch, grant **Notch Agent** access in **System Settings → Privacy &
 Security → Accessibility**. This permission is required for global shortcuts and
 agent actions; if a stale denied entry exists, remove it with the − button first.
@@ -91,7 +110,14 @@ swift test             # full test suite (swift-testing)
 GitHub Actions builds and tests every push and pull request to `main` on the
 `macos-15` runner with Xcode 16.4. A pushed version tag runs the same tests,
 builds `NotchApp-<version>.zip`, verifies the app and archive signatures,
-publishes a GitHub Release with generated notes, and updates the Homebrew cask.
+publishes a GitHub Release with generated notes and an `appcast.json` manifest,
+and updates the Homebrew cask.
+
+`appcast.json` is what running copies poll, through the stable
+`https://github.com/ykushch/agsig/releases/latest/download/appcast.json`
+redirect. Its schema is defined by
+[`Sources/NotchApp/Updates/UpdateManifest.swift`](Sources/NotchApp/Updates/UpdateManifest.swift);
+the app rejects any manifest whose URLs are not HTTPS on a GitHub host.
 
 The release workflow needs one repository secret named `HOMEBREW_TAP_TOKEN`.
 Create a fine-grained personal access token restricted to the

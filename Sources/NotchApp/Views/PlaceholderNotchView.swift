@@ -70,6 +70,8 @@ private struct CompactNotchSummary: View {
     @Bindable var surface: NotchSurfaceState
     let topInset: CGFloat
 
+    private var pendingUpdateVersion: String? { model.pendingUpdate?.version.rawValue }
+
     var body: some View {
         Button(action: model.toggle) {
             VStack(spacing: 0) {
@@ -88,22 +90,49 @@ private struct CompactNotchSummary: View {
                             .font(.system(size: 8, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white.opacity(0.82))
                             .monospacedDigit()
+                        if pendingUpdateVersion != nil {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(NotchPalette.updateAccent)
+                        }
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
                     .padding(.horizontal, 8)
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 } else {
-                    Capsule()
-                        .fill(NotchPalette.status(model.overallStatus))
-                        .frame(width: 34, height: 3)
+                    // Total width stays 34pt either way, so the compact panel
+                    // never resizes just because an update landed. The status
+                    // color is never replaced — an update must not be mistaken
+                    // for an agent that needs attention.
+                    HStack(spacing: 4) {
+                        Capsule()
+                            .fill(NotchPalette.status(model.overallStatus))
+                            .frame(width: pendingUpdateVersion == nil ? 34 : 26, height: 3)
+                        if pendingUpdateVersion != nil {
+                            Capsule()
+                                .fill(NotchPalette.updateAccent)
+                                .frame(width: 4, height: 3)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("herdr agents — click to expand")
-        .accessibilityLabel("\(model.agentCount) agents, \(model.attentionCount) need input")
+        .help(helpText)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var helpText: String {
+        guard let version = pendingUpdateVersion else { return "herdr agents — click to expand" }
+        return "herdr agents — NotchAgent \(version) is available"
+    }
+
+    private var accessibilityText: String {
+        let base = "\(model.agentCount) agents, \(model.attentionCount) need input"
+        guard let version = pendingUpdateVersion else { return base }
+        return "\(base). NotchAgent \(version) is available"
     }
 }
 
@@ -139,6 +168,10 @@ enum NotchPalette {
     static let hairline = Color.white.opacity(0.11)
     static let secondaryText = Color.white.opacity(0.54)
     static let tertiaryText = Color.white.opacity(0.34)
+    /// Deliberately outside the `RollupStatus` palette below and the action
+    /// colors used elsewhere (cyan for jump, purple for mode), so an available
+    /// update reads as information rather than as something demanding a reply.
+    static let updateAccent = Color(red: 0.62, green: 0.66, blue: 0.98)
 
     static func status(_ status: RollupStatus) -> Color {
         switch status {

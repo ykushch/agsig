@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var settings: Settings
+    @Bindable var updates: UpdateChecker
     let onSessionChange: () -> Void
     let availableSessions: [String]
 
@@ -42,6 +43,18 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Toggle("Launch at login", isOn: $settings.launchAtLogin)
+            Section("Updates") {
+                LabeledContent("Version", value: updates.currentVersionText)
+                Toggle("Check for updates automatically", isOn: $settings.automaticUpdateChecks)
+                HStack {
+                    Text(updates.statusText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Check Now", action: updates.checkNow)
+                        .disabled(!updates.isSupported || updates.state == .checking)
+                }
+            }
             HStack {
                 Text("Socket override")
                 TextField("Auto-discover", text: Binding(get: { settings.socketPathOverride ?? "" }, set: { settings.socketPathOverride = $0.isEmpty ? nil : $0 }))
@@ -50,7 +63,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(width: 460, height: 520)
+        .frame(width: 460, height: 640)
     }
 
     private var displayPlacementHelp: String {

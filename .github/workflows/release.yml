@@ -67,6 +67,30 @@ jobs:
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
           echo "Archive SHA-256: $sha256"
 
+      # The running app polls this asset through the stable
+      # `releases/latest/download/appcast.json` redirect to learn that a newer
+      # version exists. Keep the schema in sync with Sources/NotchApp/Updates/UpdateManifest.swift.
+      - name: Generate update manifest
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.archive.outputs.sha256 }}
+        run: |
+          minimum="$(plutil -extract LSMinimumSystemVersion raw build/NotchApp.app/Contents/Info.plist)"
+          cat > build/appcast.json <<JSON
+          {
+            "schemaVersion": 1,
+            "version": "${VERSION}",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "minimumSystemVersion": "${minimum}",
+            "downloadURL": "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/NotchApp-${VERSION}.zip",
+            "sha256": "${SHA256}",
+            "releaseNotesURL": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          }
+          JSON
+          python3 -c 'import json; json.load(open("build/appcast.json"))'
+          cat build/appcast.json
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -75,9 +99,9 @@ jobs:
         run: |
           archive="build/NotchApp-${VERSION}.zip"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$archive" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$archive" build/appcast.json --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$archive" \
+            gh release create "$GITHUB_REF_NAME" "$archive" build/appcast.json \
               --verify-tag \
               --generate-notes \
               --title "NotchAgent ${VERSION}"

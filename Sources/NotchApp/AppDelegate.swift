@@ -9,13 +9,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var settings: Settings?
     private var soundEngine: SoundEngine?
+    private var updateChecker: UpdateChecker?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = Settings()
         let model = NotchViewModel(client: HerdrClient(socketPath: settings.resolvedSocketPath()))
         let sound = SoundEngine(settings: settings)
+        let updates = UpdateChecker(settings: settings)
         model.settings = settings
         model.soundEngine = sound
+        model.updateChecker = updates
 
         let controller = NotchWindowController(viewModel: model, settings: settings)
         controller.show()
@@ -27,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menuBar = MenuBarController(
             settings: settings,
+            updates: updates,
             onSessionChange: { [weak model, weak settings] in
                 guard let model, let settings else { return }
                 model.reconnect(socketPath: settings.resolvedSocketPath())
@@ -34,9 +38,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onToggleNotch: { [weak model] in model?.toggle() }
         )
         menuBar.install()
+        updates.start()
 
         self.settings = settings
         soundEngine = sound
+        updateChecker = updates
         viewModel = model
         notchController = controller
         hotkeyMonitor = monitor
@@ -45,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyMonitor?.stop()
+        updateChecker?.stop()
         viewModel?.stop()
         menuBar?.remove()
         notchController?.tearDown()
